@@ -2,7 +2,7 @@ param(
   [string]$BinaryPath = "C:\Program Files\Promtact\promtact.exe",
   [string]$WorkingDirectory = "C:\ProgramData\Promtact",
   [string]$PolicyPath = "C:\ProgramData\Promtact\policy.json",
-  [string]$DataPath = "C:\ProgramData\Promtact\state.json",
+  [string]$PostgresDsn = "",
   [string]$ListenAddress = ":8080",
   [string]$ServiceName = "Promtact"
 )
@@ -15,7 +15,10 @@ if (-not (Test-Path -LiteralPath $BinaryPath)) {
 
 New-Item -ItemType Directory -Force -Path $WorkingDirectory | Out-Null
 
-$arguments = "--addr $ListenAddress --data `"$DataPath`""
+$arguments = "--addr $ListenAddress"
+if ($PostgresDsn -ne "") {
+  $arguments = "$arguments --postgres-dsn `"$PostgresDsn`""
+}
 if (Test-Path -LiteralPath $PolicyPath) {
   $arguments = "$arguments --policy `"$PolicyPath`""
 }
@@ -34,4 +37,3 @@ sc.exe description $ServiceName "Defensive control plane for agentic threat tele
 sc.exe start $ServiceName | Out-Null
 
 Write-Host "Installed and started service $ServiceName"
-

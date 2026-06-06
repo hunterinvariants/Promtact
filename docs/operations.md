@@ -18,6 +18,12 @@ Suggested layout:
 /var/lib/promtact/state.json
 ```
 
+For production, set Postgres in `/etc/promtact/promtact.env`:
+
+```text
+PROMTACT_POSTGRES_DSN=postgres://promtact:promtact@postgres:5432/promtact?sslmode=disable
+```
+
 Create a dedicated user, copy the binaries and policy file, install the unit,
 then enable it:
 
@@ -56,10 +62,30 @@ The payload type is `promtact.alerts`.
 
 ## Storage
 
-Current durable storage is the local JSON snapshot configured with `--data`.
-This is suitable for local labs, pilots, and single-node testing.
+Production durable storage is Postgres via `--postgres-dsn` or
+`PROMTACT_POSTGRES_DSN`. Promtact creates the required tables automatically.
 
-SQLite/Postgres is the next storage milestone. It should be implemented behind
-the existing store boundary so the API and collectors do not change when the
-storage backend changes.
+The local JSON snapshot configured with `--data` remains useful for development
+and quick labs, but it is not the production storage path.
 
+## RBAC
+
+Define users in the policy file with token hashes:
+
+```json
+{
+  "users": [
+    {
+      "name": "admin",
+      "token_sha256": "replace-with-sha256-token-hash",
+      "roles": ["admin"]
+    }
+  ]
+}
+```
+
+Generate a hash:
+
+```powershell
+.\promtactl.exe token-hash --token "replace-with-secret-token"
+```

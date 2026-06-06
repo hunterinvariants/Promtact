@@ -8,7 +8,7 @@ Type=simple
 User=promtact
 Group=promtact
 WorkingDirectory=/opt/promtact
-ExecStart=/opt/promtact/promtact --addr :8080 --data /var/lib/promtact/state.json --policy /etc/promtact/policy.json
+ExecStart=/opt/promtact/promtact --addr :8080 --policy /etc/promtact/policy.json
 EnvironmentFile=-/etc/promtact/promtact.env
 Restart=on-failure
 RestartSec=5s
@@ -20,4 +20,3 @@ ReadWritePaths=/var/lib/promtact
 
 [Install]
 WantedBy=multi-user.target
-
