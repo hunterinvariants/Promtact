@@ -1,0 +1,23 @@
+[Unit]
+Description=Promtact
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=promtact
+Group=promtact
+WorkingDirectory=/opt/promtact
+ExecStart=/opt/promtact/promtact --addr :8080 --data /var/lib/promtact/state.json --policy /etc/promtact/policy.json
+EnvironmentFile=-/etc/promtact/promtact.env
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/promtact
+
+[Install]
+WantedBy=multi-user.target
+
