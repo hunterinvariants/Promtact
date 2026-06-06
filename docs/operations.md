@@ -11,12 +11,17 @@ packaging/systemd/promtact.service
 Suggested layout:
 
 ```text
-/opt/promtact/promtact
-/opt/promtact/promtactl
+/opt/promtact/current/promtact
+/opt/promtact/current/promtactl
+/opt/promtact/releases/<sha>/promtact
+/opt/promtact/releases/<sha>/promtactl
 /etc/promtact/policy.json
 /etc/promtact/promtact.env
 /var/lib/promtact/state.json
 ```
+
+The service unit points at `/opt/promtact/current`, so deployments can swap a
+release symlink atomically and restart the service with a rollback available.
 
 For production, set Postgres in `/etc/promtact/promtact.env`:
 
@@ -39,9 +44,33 @@ sudo useradd --system --home /var/lib/promtact --shell /usr/sbin/nologin promtac
 sudo mkdir -p /opt/promtact /etc/promtact /var/lib/promtact
 sudo chown -R promtact:promtact /var/lib/promtact
 sudo cp packaging/systemd/promtact.service /etc/systemd/system/promtact.service
+sudo chown root:promtact /etc/promtact/policy.json
+sudo chmod 0640 /etc/promtact/policy.json
 sudo systemctl daemon-reload
 sudo systemctl enable --now promtact
 ```
+
+## GitHub Deploy
+
+The repository includes a GitHub Actions deployment workflow for reachable
+Ubuntu hosts. It expects a release layout like this:
+
+```text
+/opt/promtact/releases/<sha>/promtact
+/opt/promtact/releases/<sha>/promtactl
+/opt/promtact/current -> /opt/promtact/releases/<sha>
+```
+
+The workflow needs SSH credentials and host details through repository or
+environment secrets:
+
+- `PROMTACT_DEPLOY_HOST`
+- `PROMTACT_DEPLOY_PORT`
+- `PROMTACT_DEPLOY_USER`
+- `PROMTACT_DEPLOY_SSH_KEY`
+
+The target user must be able to restart `promtact` through `sudo` without an
+interactive password prompt.
 
 ## Windows Service
 
