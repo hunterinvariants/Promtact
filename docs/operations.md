@@ -86,6 +86,17 @@ $env:PROMTACT_TEST_POSTGRES_DSN="postgres://promtact:promtact@localhost:5432/pro
 go test ./internal/store -run TestPostgresPersistenceIntegration -count=1
 ```
 
+Portable backups are JSON snapshots produced by `promtactl backup` and restored
+with `promtactl restore`:
+
+```powershell
+go run ./cmd/promtactl backup --postgres-dsn $env:PROMTACT_POSTGRES_DSN --output backup.json
+go run ./cmd/promtactl restore --postgres-dsn $env:PROMTACT_POSTGRES_DSN --input backup.json
+```
+
+The service also exposes `GET /healthz` and `GET /readyz` for process and
+database readiness checks.
+
 ## Audit Log
 
 The service records audit events for authentication failures, RBAC denials,
