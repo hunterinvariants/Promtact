@@ -87,6 +87,20 @@ go run ./cmd/promtact --demo
 
 The payload type is `promtact.response_action`.
 
+GitHub can be used as a concrete execution target for incidents and approved
+runbooks:
+
+```powershell
+$env:PROMTACT_GITHUB_OWNER="hunterinvariants"
+$env:PROMTACT_GITHUB_REPO="promtact"
+$env:PROMTACT_GITHUB_TOKEN="replace-with-token"
+$env:PROMTACT_GITHUB_WORKFLOW_FILE="runbook.yml"
+go run ./cmd/promtact --demo
+```
+
+Incident plans create GitHub issues. Approved response actions dispatch the
+configured workflow file.
+
 ## Storage
 
 Production durable storage is Postgres via `--postgres-dsn` or
@@ -135,6 +149,13 @@ go run ./cmd/promtactl agent --source sysmon-json --file sysmon.jsonl --url http
 
 Use `--once` for a single pass over the current file contents, or omit it to
 keep polling for appended telemetry.
+
+Native source modes are also available:
+
+```powershell
+go run ./cmd/promtactl agent --source windows-eventlog --log-name Microsoft-Windows-Sysmon/Operational --url http://localhost:8080
+go run ./cmd/promtactl agent --source journald --journal-unit ssh.service --url http://localhost:8080
+```
 
 ## Audit Log
 
