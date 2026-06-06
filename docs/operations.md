@@ -67,7 +67,17 @@ go run ./cmd/promtact --demo
 
 The payload type is `promtact.alerts`.
 
-Approved response actions can also be exported to a webhook transport:
+Incident ticket creation can be exported to a ticketing webhook transport:
+
+```powershell
+$env:PROMTACT_TICKET_WEBHOOK_URL="https://ticketing.example.invalid/promtact"
+$env:PROMTACT_TICKET_WEBHOOK_TOKEN="replace-with-token"
+go run ./cmd/promtact --demo
+```
+
+The payload type is `promtact.incident_ticket`.
+
+Approved response actions can also be exported to a response webhook transport:
 
 ```powershell
 $env:PROMTACT_RESPONSE_WEBHOOK_URL="https://soar.example.invalid/promtact"
@@ -106,6 +116,11 @@ go run ./cmd/promtactl restore --postgres-dsn $env:PROMTACT_POSTGRES_DSN --input
 
 The service also exposes `GET /healthz` and `GET /readyz` for process and
 database readiness checks.
+
+Response actions are split by connector:
+
+- `create_incident_ticket` uses the ticket webhook as soon as the plan is stored.
+- approval-required actions use the response webhook only after operator approval.
 
 ## Collector Agents
 
