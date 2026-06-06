@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hunterinvariants/promtact/internal/agent"
 	"github.com/hunterinvariants/promtact/internal/auth"
 	"github.com/hunterinvariants/promtact/internal/collectors"
 	"github.com/hunterinvariants/promtact/internal/domain"
@@ -42,6 +44,10 @@ func main() {
 		}
 	case "restore":
 		if err := restore(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+	case "agent":
+		if err := agentCommand(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
 	case "token-hash":
@@ -232,6 +238,41 @@ func restore(args []string) error {
 	return nil
 }
 
+func agentCommand(args []string) error {
+	fs := flag.NewFlagSet("agent", flag.ContinueOnError)
+	source := fs.String("source", "", "collector source: "+strings.Join(collectors.Sources(), ", "))
+	filePath := fs.String("file", "", "path to the source log file")
+	baseURL := fs.String("url", "http://localhost:8080", "Promtact base URL")
+	token := fs.String("token", os.Getenv("PROMTACT_API_TOKEN"), "optional API token")
+	batchSize := fs.Int("batch-size", 100, "events per request")
+	pollInterval := fs.Duration("poll-interval", 5*time.Second, "poll interval for tailing")
+	statePath := fs.String("state-file", "", "optional state file for offsets")
+	once := fs.Bool("once", false, "process available content once and exit")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *source == "" {
+		return errors.New("agent requires --source")
+	}
+	if *filePath == "" {
+		return errors.New("agent requires --file")
+	}
+	ctx := context.Background()
+	if err := agent.Run(ctx, agent.Config{
+		Source:       *source,
+		Path:         *filePath,
+		BaseURL:      *baseURL,
+		Token:        *token,
+		BatchSize:    *batchSize,
+		PollInterval: *pollInterval,
+		StatePath:    *statePath,
+		Once:         *once,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func readEvents(filePath string) ([]domain.Event, error) {
 	input, closeInput, err := openInput(filePath)
 	if err != nil {
@@ -304,5 +345,6 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  promtactl replay --file events.jsonl [--url http://localhost:8080] [--token TOKEN]")
 	fmt.Fprintln(os.Stderr, "  promtactl backup --postgres-dsn DSN --output backup.json")
 	fmt.Fprintln(os.Stderr, "  promtactl restore --postgres-dsn DSN --input backup.json")
+	fmt.Fprintln(os.Stderr, "  promtactl agent --source sysmon-json --file sysmon.jsonl [--url http://localhost:8080]")
 	fmt.Fprintln(os.Stderr, "  promtactl token-hash --token TOKEN")
 }
