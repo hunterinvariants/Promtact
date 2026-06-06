@@ -1,19 +1,22 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"time"
 
+	"github.com/hunterinvariants/promtact/internal/auth"
 	"github.com/hunterinvariants/promtact/internal/policy"
 )
 
 const DefaultCorrelationWindow = 30 * time.Minute
 
 type Config struct {
-	ApprovedTools       []string `json:"approved_tools"`
-	ApprovedEgressHosts []string `json:"approved_egress_hosts"`
-	CorrelationWindow   string   `json:"correlation_window"`
+	ApprovedTools       []string          `json:"approved_tools"`
+	ApprovedEgressHosts []string          `json:"approved_egress_hosts"`
+	CorrelationWindow   string            `json:"correlation_window"`
+	Users               []auth.UserConfig `json:"users"`
 }
 
 func Load(path string) (Config, error) {
@@ -25,6 +28,7 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
