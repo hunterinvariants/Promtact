@@ -27,6 +27,7 @@ For production, set Postgres in `/etc/promtact/promtact.env`:
 
 ```text
 PROMTACT_POSTGRES_DSN=postgres://promtact:promtact@postgres:5432/promtact?sslmode=disable
+PROMTACT_SESSION_SECRET=<strong-random-secret>
 ```
 
 For local development and integration tests, start the bundled Compose service:
