@@ -1,0 +1,21 @@
+[Unit]
+Description=Promtact instance %i
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=promtact
+Group=promtact
+EnvironmentFile=-/etc/promtact/%i.env
+Environment=PROMTACT_ADDR=127.0.0.1:8080
+Environment=PROMTACT_POLICY_PATH=/etc/promtact/policy.json
+WorkingDirectory=/opt/promtact/current
+ExecStart=/opt/promtact/current/promtact --addr ${PROMTACT_ADDR} --instance-name %i --public-url ${PROMTACT_PUBLIC_URL} --policy ${PROMTACT_POLICY_PATH} --postgres-dsn ${PROMTACT_POSTGRES_DSN} --api-token ${PROMTACT_API_TOKEN} --alert-webhook-url ${PROMTACT_ALERT_WEBHOOK_URL} --alert-webhook-token ${PROMTACT_ALERT_WEBHOOK_TOKEN} --ticket-webhook-url ${PROMTACT_TICKET_WEBHOOK_URL} --ticket-webhook-token ${PROMTACT_TICKET_WEBHOOK_TOKEN} --response-webhook-url ${PROMTACT_RESPONSE_WEBHOOK_URL} --response-webhook-token ${PROMTACT_RESPONSE_WEBHOOK_TOKEN} --github-api-base ${PROMTACT_GITHUB_API_BASE} --github-owner ${PROMTACT_GITHUB_OWNER} --github-repo ${PROMTACT_GITHUB_REPO} --github-token ${PROMTACT_GITHUB_TOKEN} --github-workflow-file ${PROMTACT_GITHUB_WORKFLOW_FILE} --github-workflow-ref ${PROMTACT_GITHUB_WORKFLOW_REF} --mcp-upstream-url ${PROMTACT_MCP_UPSTREAM_URL} --mcp-upstream-token ${PROMTACT_MCP_UPSTREAM_TOKEN} --oidc-issuer-url ${PROMTACT_OIDC_ISSUER_URL} --oidc-client-id ${PROMTACT_OIDC_CLIENT_ID} --oidc-client-secret ${PROMTACT_OIDC_CLIENT_SECRET} --oidc-redirect-url ${PROMTACT_OIDC_REDIRECT_URL} --oidc-scopes ${PROMTACT_OIDC_SCOPES} --oidc-tenant-claim ${PROMTACT_OIDC_TENANT_CLAIM} --oidc-role-claim ${PROMTACT_OIDC_ROLE_CLAIM} --oidc-email-claim ${PROMTACT_OIDC_EMAIL_CLAIM} --saml-root-url ${PROMTACT_SAML_ROOT_URL} --saml-idp-metadata-url ${PROMTACT_SAML_IDP_METADATA_URL} --saml-key-path ${PROMTACT_SAML_KEY_PATH} --saml-cert-path ${PROMTACT_SAML_CERT_PATH} --saml-tenant-attribute ${PROMTACT_SAML_TENANT_ATTRIBUTE} --saml-role-attribute ${PROMTACT_SAML_ROLE_ATTRIBUTE} --saml-email-attribute ${PROMTACT_SAML_EMAIL_ATTRIBUTE} --trusted-proxies ${PROMTACT_TRUSTED_PROXIES} --retention-window ${PROMTACT_RETENTION_WINDOW} --gateway-max-in-flight ${PROMTACT_GATEWAY_MAX_IN_FLIGHT}
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
