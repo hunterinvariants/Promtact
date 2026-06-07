@@ -19,6 +19,7 @@ import (
 	"github.com/hunterinvariants/promtact/internal/auth"
 	"github.com/hunterinvariants/promtact/internal/collectors"
 	"github.com/hunterinvariants/promtact/internal/domain"
+	"github.com/hunterinvariants/promtact/internal/policy"
 	"github.com/hunterinvariants/promtact/internal/store"
 	"github.com/hunterinvariants/promtact/internal/telemetry"
 )
@@ -59,6 +60,10 @@ func main() {
 		if err := wedgeDemo(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
+	case "sign-manifest":
+		if err := signManifestCommand(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
 	default:
 		usage()
 		os.Exit(2)
@@ -79,6 +84,23 @@ func tokenHash(args []string) error {
 		return errors.New("token-hash requires --token or PROMTACT_TOKEN")
 	}
 	fmt.Println(auth.HashToken(value))
+	return nil
+}
+
+func signManifestCommand(args []string) error {
+	fs := flag.NewFlagSet("sign-manifest", flag.ContinueOnError)
+	filePath := fs.String("file", "", "threat pack manifest JSON to sign")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *filePath == "" {
+		return errors.New("sign-manifest requires --file")
+	}
+	sigPath, err := policy.SignThreatPackFile(*filePath)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("manifest=%s signature=%s\n", *filePath, sigPath)
 	return nil
 }
 
