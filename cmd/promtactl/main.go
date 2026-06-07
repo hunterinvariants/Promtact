@@ -19,6 +19,7 @@ import (
 	"github.com/hunterinvariants/promtact/internal/auth"
 	"github.com/hunterinvariants/promtact/internal/collectors"
 	"github.com/hunterinvariants/promtact/internal/domain"
+	"github.com/hunterinvariants/promtact/internal/license"
 	"github.com/hunterinvariants/promtact/internal/policy"
 	"github.com/hunterinvariants/promtact/internal/store"
 	"github.com/hunterinvariants/promtact/internal/telemetry"
@@ -64,6 +65,10 @@ func main() {
 		if err := signManifestCommand(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
+	case "license":
+		if err := licenseCommand(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
 	default:
 		usage()
 		os.Exit(2)
@@ -102,6 +107,85 @@ func signManifestCommand(args []string) error {
 	}
 	fmt.Printf("manifest=%s signature=%s\n", *filePath, sigPath)
 	return nil
+}
+
+func licenseCommand(args []string) error {
+	if len(args) < 1 {
+		return errors.New("usage: promtactl license <keygen|issue|verify> ...")
+	}
+	switch args[0] {
+	case "keygen":
+		pub, priv, err := license.GenerateKeyPair()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("public_key=%s\nprivate_key=%s\n", pub, priv)
+		return nil
+	case "issue":
+		fs := flag.NewFlagSet("license issue", flag.ContinueOnError)
+		privateKey := fs.String("private-key", os.Getenv("PROMTACT_LICENSE_PRIVATE_KEY"), "base64 ed25519 private key")
+		org := fs.String("org", "", "licensed organization")
+		edition := fs.String("edition", "commercial", "license edition")
+		features := fs.String("features", "", "comma-separated feature flags")
+		validFor := fs.Duration("valid-for", 365*24*time.Hour, "validity duration from now")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*privateKey) == "" {
+			return errors.New("license issue requires --private-key or PROMTACT_LICENSE_PRIVATE_KEY")
+		}
+		if strings.TrimSpace(*org) == "" {
+			return errors.New("license issue requires --org")
+		}
+		var feats []string
+		for _, f := range strings.Split(*features, ",") {
+			if s := strings.TrimSpace(f); s != "" {
+				feats = append(feats, s)
+			}
+		}
+		token, err := license.Issue(license.License{
+			Org:       strings.TrimSpace(*org),
+			Edition:   strings.TrimSpace(*edition),
+			Features:  feats,
+			ExpiresAt: time.Now().UTC().Add(*validFor),
+		}, *privateKey)
+		if err != nil {
+			return err
+		}
+		fmt.Println(token)
+		return nil
+	case "verify":
+		fs := flag.NewFlagSet("license verify", flag.ContinueOnError)
+		publicKey := fs.String("public-key", os.Getenv("PROMTACT_LICENSE_PUBLIC_KEY"), "base64 ed25519 public key")
+		token := fs.String("token", "", "license token to verify")
+		tokenFile := fs.String("file", "", "file containing the license token")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		value := strings.TrimSpace(*token)
+		if value == "" && strings.TrimSpace(*tokenFile) != "" {
+			data, err := os.ReadFile(*tokenFile)
+			if err != nil {
+				return err
+			}
+			value = strings.TrimSpace(string(data))
+		}
+		if strings.TrimSpace(*publicKey) == "" || value == "" {
+			return errors.New("license verify requires --public-key and --token or --file")
+		}
+		status := license.Evaluate(value, *publicKey, time.Now().UTC())
+		out, err := json.MarshalIndent(status, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(out))
+		if !status.Valid {
+			return errors.New("license is not valid")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown license subcommand %q", args[0])
+	}
 }
 
 func collect(args []string) error {
@@ -664,6 +748,10 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  promtactl agent --source journald [--journal-unit ssh.service]")
 	fmt.Fprintln(os.Stderr, "  promtactl token-hash --token TOKEN")
 	fmt.Fprintln(os.Stderr, "  promtactl wedge-demo [--url http://localhost:8080] [--approved-by operator] [--await-approval]")
+	fmt.Fprintln(os.Stderr, "  promtactl sign-manifest --file threatpack.manifest.json")
+	fmt.Fprintln(os.Stderr, "  promtactl license keygen")
+	fmt.Fprintln(os.Stderr, "  promtactl license issue --private-key KEY --org ACME [--features sso,multi-tenant] [--valid-for 8760h]")
+	fmt.Fprintln(os.Stderr, "  promtactl license verify --public-key KEY --token TOKEN")
 }
 
 func isNativeAgentSource(source string) bool {
