@@ -293,7 +293,8 @@ Generate a hash:
 ## Dashboard Login
 
 The dashboard uses a session cookie instead of storing bearer tokens in the
-browser.
+browser. It also supports OIDC SSO when `PROMTACT_OIDC_ISSUER_URL`,
+`PROMTACT_OIDC_CLIENT_ID`, and `PROMTACT_OIDC_REDIRECT_URL` are configured.
 
 Login:
 
