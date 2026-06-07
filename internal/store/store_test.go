@@ -1,12 +1,17 @@
 package store
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/hunterinvariants/promtact/internal/domain"
 )
+
+func init() {
+	_ = os.Setenv("PROMTACT_SESSION_SECRET", "test-session-secret")
+}
 
 func TestStorePersistsAndLoadsSnapshot(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
