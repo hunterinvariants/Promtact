@@ -58,6 +58,7 @@ Run with Postgres persistence:
 ```powershell
 docker compose up -d postgres
 $env:PROMTACT_POSTGRES_DSN="postgres://promtact:promtact@localhost:5432/promtact?sslmode=disable"
+$env:PROMTACT_SESSION_SECRET="replace-with-a-strong-random-secret"
 go run ./cmd/promtact --demo --addr 127.0.0.1:8080 --policy configs\example.policy.json
 ```
 
