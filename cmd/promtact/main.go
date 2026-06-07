@@ -17,6 +17,7 @@ import (
 
 	"github.com/hunterinvariants/promtact/internal/config"
 	"github.com/hunterinvariants/promtact/internal/domain"
+	"github.com/hunterinvariants/promtact/internal/policy"
 	"github.com/hunterinvariants/promtact/internal/server"
 )
 
@@ -29,6 +30,7 @@ func main() {
 	apiToken := flag.String("api-token", os.Getenv("PROMTACT_API_TOKEN"), "optional API token for write endpoints")
 	threatPackPath := flag.String("threat-pack", os.Getenv("PROMTACT_THREAT_PACK"), "optional threat pack JSON file")
 	deceptionTokensPath := flag.String("deception-tokens", os.Getenv("PROMTACT_DECEPTION_TOKENS"), "optional JSON file of deception/canary tokens")
+	tenantPoliciesPath := flag.String("tenant-policies", os.Getenv("PROMTACT_TENANT_POLICIES"), "optional JSON file of org-scoped policy sets")
 	licenseFile := flag.String("license-file", os.Getenv("PROMTACT_LICENSE_FILE"), "path to a commercial license token file")
 	licensePublicKey := flag.String("license-public-key", os.Getenv("PROMTACT_LICENSE_PUBLIC_KEY"), "base64 ed25519 public key to verify the license")
 	alertWebhookURL := flag.String("alert-webhook-url", os.Getenv("PROMTACT_ALERT_WEBHOOK_URL"), "optional SIEM/webhook URL for new alerts")
@@ -122,6 +124,16 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	var tenantPolicies []policy.TenantPolicy
+	if value := strings.TrimSpace(*tenantPoliciesPath); value != "" {
+		data, err := os.ReadFile(value)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := json.Unmarshal(data, &tenantPolicies); err != nil {
+			log.Fatal(err)
+		}
+	}
 	licenseToken := ""
 	if value := strings.TrimSpace(*licenseFile); value != "" {
 		data, err := os.ReadFile(value)
@@ -146,6 +158,7 @@ func main() {
 		CorrelationWindow:         window,
 		ThreatPackPath:            strings.TrimSpace(*threatPackPath),
 		DeceptionTokens:           deceptionTokens,
+		TenantPolicies:            tenantPolicies,
 		LicenseToken:              licenseToken,
 		LicensePublicKey:          strings.TrimSpace(*licensePublicKey),
 		AlertWebhookURL:           *alertWebhookURL,
