@@ -36,8 +36,7 @@ go test ./...
 Run the local dashboard:
 
 ```powershell
-go run ./cmd/promtact --demo
+go run ./cmd/promtact --demo --addr 127.0.0.1:8080
 ```
 
 Then open `http://localhost:8080`.
-
