@@ -150,7 +150,7 @@ New alerts can be exported to a SIEM or webhook endpoint:
 ```powershell
 $env:PROMTACT_ALERT_WEBHOOK_URL="https://siem.example.invalid/promtact"
 $env:PROMTACT_ALERT_WEBHOOK_TOKEN="replace-with-token"
-go run ./cmd/promtact --demo
+go run ./cmd/promtact --demo --addr 127.0.0.1:8080
 ```
 
 The payload type is `promtact.alerts`.
@@ -160,7 +160,7 @@ Incident ticket creation can be exported to a ticketing webhook transport:
 ```powershell
 $env:PROMTACT_TICKET_WEBHOOK_URL="https://ticketing.example.invalid/promtact"
 $env:PROMTACT_TICKET_WEBHOOK_TOKEN="replace-with-token"
-go run ./cmd/promtact --demo
+go run ./cmd/promtact --demo --addr 127.0.0.1:8080
 ```
 
 The payload type is `promtact.incident_ticket`.
@@ -170,7 +170,7 @@ Approved response actions can also be exported to a response webhook transport:
 ```powershell
 $env:PROMTACT_RESPONSE_WEBHOOK_URL="https://soar.example.invalid/promtact"
 $env:PROMTACT_RESPONSE_WEBHOOK_TOKEN="replace-with-token"
-go run ./cmd/promtact --demo
+go run ./cmd/promtact --demo --addr 127.0.0.1:8080
 ```
 
 The payload type is `promtact.response_action`.
@@ -183,7 +183,7 @@ $env:PROMTACT_GITHUB_OWNER="hunterinvariants"
 $env:PROMTACT_GITHUB_REPO="promtact"
 $env:PROMTACT_GITHUB_TOKEN="replace-with-token"
 $env:PROMTACT_GITHUB_WORKFLOW_FILE="runbook.yml"
-go run ./cmd/promtact --demo
+go run ./cmd/promtact --demo --addr 127.0.0.1:8080
 ```
 
 Incident plans create GitHub issues. Approved response actions dispatch the

@@ -45,7 +45,7 @@ $env:APPDATA="$PWD\.cache\appdata"
 $env:GOTELEMETRY="off"
 $env:GOCACHE="$PWD\.cache\go-build"
 $env:GOMODCACHE="$PWD\.cache\go-mod"
-go run ./cmd/promtact --demo
+go run ./cmd/promtact --demo --addr 127.0.0.1:8080
 ```
 
 Run with Postgres persistence:
@@ -53,19 +53,19 @@ Run with Postgres persistence:
 ```powershell
 docker compose up -d postgres
 $env:PROMTACT_POSTGRES_DSN="postgres://promtact:promtact@localhost:5432/promtact?sslmode=disable"
-go run ./cmd/promtact --demo --policy configs\example.policy.json
+go run ./cmd/promtact --demo --addr 127.0.0.1:8080 --policy configs\example.policy.json
 ```
 
 Run with local JSON persistence for development:
 
 ```powershell
-go run ./cmd/promtact --demo --data .cache\promtact-state.json
+go run ./cmd/promtact --demo --addr 127.0.0.1:8080 --data .cache\promtact-state.json
 ```
 
 Run with an explicit policy configuration:
 
 ```powershell
-go run ./cmd/promtact --demo --policy configs\example.policy.json
+go run ./cmd/promtact --demo --addr 127.0.0.1:8080 --policy configs\example.policy.json
 ```
 
 Open:
