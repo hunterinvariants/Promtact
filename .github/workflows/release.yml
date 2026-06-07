@@ -33,7 +33,7 @@ jobs:
           mkdir -p dist
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o "dist/promtact-${{ matrix.goos }}-${{ matrix.goarch }}${suffix}" ./cmd/promtact
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o "dist/promtactl-${{ matrix.goos }}-${{ matrix.goarch }}${suffix}" ./cmd/promtactl
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: promtact-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*
