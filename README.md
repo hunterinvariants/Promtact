@@ -171,6 +171,8 @@ Useful endpoints:
 - `GET /api/status`
 - `POST /api/gateway/decide`
 - `POST /api/gateway/execute`
+- `GET /api/gateway/queue`
+- `GET /api/gateway/actions/{id}`
 - `GET /api/events`
 - `POST /api/events`
 - `GET /api/alerts`
@@ -276,7 +278,7 @@ go run ./cmd/promtactl replay --file examples\demo-events.jsonl --dry-run
 Run the wedge demo against a live server:
 
 ```powershell
-go run ./cmd/promtactl wedge-demo --url http://localhost:8080 --approved-by operator
+go run ./cmd/promtactl wedge-demo --url http://localhost:8080 --approved-by operator --await-approval
 ```
 
 Normalize external defensive logs to Promtact JSONL:
