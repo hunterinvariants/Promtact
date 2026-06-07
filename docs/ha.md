@@ -45,3 +45,16 @@ Use `packaging/systemd/promtact@.service` with one environment file per instance
 
 Each file should point at the same Postgres cluster, but can use a distinct
 `PROMTACT_PUBLIC_URL`, `PROMTACT_ADDR`, and `PROMTACT_INSTANCE_NAME`.
+
+## Operational Helpers
+
+- `scripts/ha-check.sh` validates readiness for all configured instances.
+- `scripts/ha-rollout.sh` restarts instances one by one and waits for
+  `/readyz` before moving to the next node.
+
+Example:
+
+```bash
+sudo PROMTACT_HA_INSTANCES=blue,green scripts/ha-check.sh
+sudo PROMTACT_HA_INSTANCES=blue,green scripts/ha-rollout.sh
+```
