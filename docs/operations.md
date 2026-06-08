@@ -337,6 +337,22 @@ Create the least-privilege validation identity by adding an `ingestor` user to
 the server so the new user loads. Store the raw token only in the root-readable
 `--token-file`.
 
+### Validating with agent identity enforced
+
+If you enforce `agent_identities` (so every tool call must present a verified
+agent), the emulations must carry an identity too, or the benign baseline is
+gated as an unidentified agent. Register a validation agent and pass it to the
+suite:
+
+```bash
+promtactl validate --url http://127.0.0.1:8080 --token-file /etc/promtact/validation.token \
+  --agent-id validation-agent --agent-token-file /etc/promtact/validation-agent.token
+```
+
+The verified identity does not weaken detection — the threat cases still fire on
+their content — so the suite stays green while identity is enforced in
+production. Add the same two flags to `promtact-validate.service` for the timer.
+
 ### Alerting on regression
 
 `promtact-validate.service` ships with `OnFailure=promtact-validate-alert.service`. When
