@@ -80,6 +80,7 @@ func main() {
 	trustedProxies := flag.String("trusted-proxies", os.Getenv("PROMTACT_TRUSTED_PROXIES"), "comma-separated list of trusted proxy CIDRs or IPs")
 	retentionWindow := flag.String("retention-window", defaultString(os.Getenv("PROMTACT_RETENTION_WINDOW"), "30d"), "retention window for events, alerts, actions, and audits")
 	gatewayMaxInFlight := flag.Int("gateway-max-in-flight", defaultIntEnv(os.Getenv("PROMTACT_GATEWAY_MAX_IN_FLIGHT"), 64), "max in-flight gateway operations before backpressure")
+	validationResultPath := flag.String("validation-result-path", os.Getenv("PROMTACT_VALIDATION_RESULT_PATH"), "path to the detection-validation result JSON served at /api/gateway/validation")
 	insecure := flag.Bool("insecure", parseBoolEnv(os.Getenv("PROMTACT_INSECURE")), "allow open mode on non-loopback listen addresses")
 	withDemo := flag.Bool("demo", false, "load safe demo telemetry at startup")
 	flag.Parse()
@@ -156,6 +157,7 @@ func main() {
 		Users:                     runtimeConfig.Users,
 		Policy:                    policyConfig,
 		PolicyPath:                strings.TrimSpace(*policyPath),
+		ValidationResultPath:      strings.TrimSpace(*validationResultPath),
 		CorrelationWindow:         window,
 		ThreatPackPath:            strings.TrimSpace(*threatPackPath),
 		DeceptionTokens:           deceptionTokens,
