@@ -2,6 +2,8 @@
 Description=Promtact detection validation (benign ATT&CK emulation suite)
 After=promtact.service
 Wants=promtact.service
+# Fire a one-shot alert when a run regresses or fails to complete.
+OnFailure=promtact-validate-alert.service
 
 [Service]
 Type=oneshot
@@ -11,10 +13,12 @@ WorkingDirectory=/opt/promtact/current
 # Validates the inline gateway against benign, ATT&CK-mapped emulations using a
 # least-privilege 'ingestor' validation token. The token file must be readable by
 # the promtact user (chown promtact:promtact /etc/promtact/validation.token; chmod 600).
-# A detection regression makes promtactl exit non-zero, which marks this unit
-# failed — pair with an OnFailure= drop-in to alert (or use --continuous --webhook).
-ExecStart=/opt/promtact/current/promtactl validate --url http://127.0.0.1:8080 --token-file /etc/promtact/validation.token
+# --output writes the latest result for the dashboard endpoint and the alert
+# handler. A detection regression makes promtactl exit non-zero, marking this unit
+# failed, which triggers OnFailure=promtact-validate-alert.service.
+ExecStart=/opt/promtact/current/promtactl validate --url http://127.0.0.1:8080 --token-file /etc/promtact/validation.token --output /var/lib/promtact/validation-last.json
 EnvironmentFile=-/etc/promtact/validate.env
+ReadWritePaths=/var/lib/promtact
 
 # Sandbox hardening
 NoNewPrivileges=true

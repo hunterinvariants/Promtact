@@ -1,0 +1,42 @@
+[Unit]
+Description=Promtact detection validation failure alert
+# Triggered via OnFailure= from promtact-validate.service. Sends one webhook alert
+# (rich, with the failed techniques, when a result file is available; otherwise a
+# generic "did not complete" notice). Configure the destination in
+# /etc/promtact/validate.env:
+#   PROMTACT_VALIDATE_ALERT_URL=https://hooks.example/detection-regression
+#   PROMTACT_VALIDATE_ALERT_TOKEN=optional-bearer-token
+
+[Service]
+Type=oneshot
+User=promtact
+Group=promtact
+EnvironmentFile=-/etc/promtact/validate.env
+ExecStart=/usr/local/sbin/promtact-validate-alert
+
+# Sandbox hardening (needs outbound network for the webhook + read of the result)
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RemoveIPC=true
+UMask=0077
