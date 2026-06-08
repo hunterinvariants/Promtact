@@ -53,6 +53,9 @@ malware behavior, or autonomous propagation. Demo data generates telemetry only.
 - `promtactl replay` for safe JSONL telemetry replay into the ingest API.
 - `promtactl validate` for authorized, benign detection validation — a library of
   MITRE ATT&CK-mapped tool-call emulations scored against the inline gateway.
+- `promtactl mcp-demo` (with `promtactl mcp-stub`) for an end-to-end proof that the
+  MCP reverse-proxy gates a real MCP client's tool calls live, and `promtactl
+  bench` for inline-gateway latency/throughput numbers.
 - `promtactl agent` for long-running tail-based collection from supported
   defensive telemetry sources, including native Windows Event Log and Linux
   journald modes.
