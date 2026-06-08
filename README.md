@@ -494,8 +494,9 @@ non-zero exit means an expected verdict did not hold. Add `--json` for CI,
 `--coverage` for an ATT&CK tactic/technique coverage map, or `--continuous
 --interval 1h --webhook <url>` to run it as a long-lived monitor that alerts on
 regression. Schedule it with the packaged `promtact-validate.timer` (with an
-`OnFailure=` webhook alert), and surface the latest result as a **Detection
-Coverage** panel in the dashboard via `--output` + `PROMTACT_VALIDATION_RESULT_PATH`
+`OnFailure=` webhook alert), and surface the latest result plus a trend
+sparkline as a **Detection Coverage** panel in the dashboard via `--output` /
+`--history` and `PROMTACT_VALIDATION_RESULT_PATH` / `PROMTACT_VALIDATION_HISTORY_PATH`
 (see [docs/operations.md](docs/operations.md)).
 
 Normalize external defensive logs to Promtact JSONL:
