@@ -69,6 +69,10 @@ func main() {
 		if err := licenseCommand(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
+	case "validate":
+		if err := validateCommand(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
 	default:
 		usage()
 		os.Exit(2)
@@ -748,6 +752,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  promtactl agent --source journald [--journal-unit ssh.service]")
 	fmt.Fprintln(os.Stderr, "  promtactl token-hash --token TOKEN")
 	fmt.Fprintln(os.Stderr, "  promtactl wedge-demo [--url http://localhost:8080] [--approved-by operator] [--await-approval]")
+	fmt.Fprintln(os.Stderr, "  promtactl validate [--url http://localhost:8080] [--token TOKEN] [--json]")
 	fmt.Fprintln(os.Stderr, "  promtactl sign-manifest --file threatpack.manifest.json")
 	fmt.Fprintln(os.Stderr, "  promtactl license keygen")
 	fmt.Fprintln(os.Stderr, "  promtactl license issue --private-key KEY --org ACME [--features sso,multi-tenant] [--valid-for 8760h]")
