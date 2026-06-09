@@ -56,6 +56,8 @@ malware behavior, or autonomous propagation. Demo data generates telemetry only.
 - `promtactl mcp-demo` (with `promtactl mcp-stub`) for an end-to-end proof that the
   MCP reverse-proxy gates a real MCP client's tool calls live, and `promtactl
   bench` for inline-gateway latency/throughput numbers.
+- A LangChain reference integration in [examples/langchain](examples/langchain)
+  that gates a third-party agent framework's tool calls through the gateway.
 - `promtactl agent` for long-running tail-based collection from supported
   defensive telemetry sources, including native Windows Event Log and Linux
   journald modes.
