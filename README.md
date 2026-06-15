@@ -27,7 +27,7 @@ malware behavior, or autonomous propagation. Demo data generates telemetry only.
 - Inline tool-call PEP for enforce-before-execute decisions at the tool
   boundary, backed by a separate PDP endpoint for diagnostics.
 - Gateway queue, approval polling, a transport proxy for tool backends, and an
-  MCP reverse-proxy that classifies each method by surface — passing through
+  MCP reverse-proxy that classifies each method by surface - passing through
   lifecycle/enumeration/notifications, gating `tools/call` against the approved
   list, and content-gating resource/prompt/sampling/completion surfaces.
 - Org-scoped policy sets: per-tenant overrides of the approved-tool and
@@ -51,7 +51,7 @@ malware behavior, or autonomous propagation. Demo data generates telemetry only.
   validation endpoint.
 - Per-asset investigation timeline endpoint.
 - `promtactl replay` for safe JSONL telemetry replay into the ingest API.
-- `promtactl validate` for authorized, benign detection validation — a library of
+- `promtactl validate` for authorized, benign detection validation - a library of
   MITRE ATT&CK-mapped tool-call emulations scored against the inline gateway.
 - `promtactl mcp-demo` (with `promtactl mcp-stub`) for an end-to-end proof that the
   MCP reverse-proxy gates a real MCP client's tool calls live, and `promtactl
