@@ -498,7 +498,7 @@ patterns on your own authorized deployment. `promtactl validate` runs a curated
 library of benign, MITRE ATT&CK-mapped tool-call emulations through the
 read-only `/api/gateway/decide` path and prints a pass/fail scorecard (including
 a benign baseline to catch false positives). It emits only synthetic descriptive
-telemetry — no real commands or exploit payloads are executed:
+telemetry - no real commands or exploit payloads are executed:
 
 ```powershell
 go run ./cmd/promtactl validate --url http://localhost:8080 --token $env:PROMTACT_API_TOKEN
