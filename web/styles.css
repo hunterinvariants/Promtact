@@ -492,3 +492,46 @@ td {
   height: 32px;
   flex: 0 0 auto;
 }
+
+/* Tenants form: match the density of the other panels */
+#tenant-form {
+  padding: 12px 12px 6px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+#tenant-form .field {
+  margin-top: 0;
+  min-width: 0;
+}
+
+#tenant-form .field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  font-size: 13px;
+  text-overflow: ellipsis;
+}
+
+#tenant-form .action-row,
+#tenant-form .form-error {
+  grid-column: 1 / -1;
+}
+
+#tenant-form .form-error {
+  margin-top: 0;
+}
+
+#tenant-form .form-error:empty {
+  min-height: 0;
+  margin: 0;
+}
+
+#tenants-list {
+  padding-top: 0;
+}
+
+.panel > .stack {
+  gap: 6px;
+}
