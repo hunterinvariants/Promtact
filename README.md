@@ -1,7 +1,7 @@
 # Promtact
 
 [![ci](https://github.com/hunterinvariants/promtact/actions/workflows/ci.yml/badge.svg)](https://github.com/hunterinvariants/promtact/actions/workflows/ci.yml)
-[![quality](https://github.com/hunterinvariants/promtact/actions/workflows/quality.yml/badge.svg)](https://github.com/hunterinvariants/promtact/actions/workflows/quality.yml)
+[![quality](https://github.com/hunterinvariants/promtact/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/hunterinvariants/promtact/actions/workflows/quality.yml)
 
 Promtact is a defensive control plane for detecting and
 containing agentic threat behavior across AI-agent tool calls, host telemetry,
