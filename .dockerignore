@@ -1,0 +1,11 @@
+.git
+.github
+.cache
+.gocache
+.gomodcache
+bin
+dist
+output
+*.exe
+*.out
+*.log

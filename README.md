@@ -1,6 +1,7 @@
 # Promtact
 
 [![ci](https://github.com/hunterinvariants/promtact/actions/workflows/ci.yml/badge.svg)](https://github.com/hunterinvariants/promtact/actions/workflows/ci.yml)
+[![quality](https://github.com/hunterinvariants/promtact/actions/workflows/quality.yml/badge.svg)](https://github.com/hunterinvariants/promtact/actions/workflows/quality.yml)
 
 Promtact is a defensive control plane for detecting and
 containing agentic threat behavior across AI-agent tool calls, host telemetry,
@@ -69,7 +70,39 @@ malware behavior, or autonomous propagation. Demo data generates telemetry only.
 - AGPLv3-or-later community license, commercial dual-license path, and CLA from
   day 1.
 
+## Architecture and assurance
+
+```mermaid
+flowchart LR
+  A[Agent / MCP client] --> B[Inline PEP]
+  B --> C[Policy + identity + provenance]
+  C -->|allow| D[Bounded tool proxy]
+  C -->|gate| E[Human approval queue]
+  C -->|deny| F[Audit evidence]
+  D --> G[Approved upstream]
+  E -->|approved| D
+  B --> H[Telemetry + correlation]
+  H --> I[Alerts + dry-run response plans]
+  I --> E
+```
+
+The security model is built around explicit, testable invariants: fail closed at
+the action boundary, keep untrusted content as data, require human authority for
+consequential actions, preserve tamper-evident decision evidence, and bound all
+critical resources. See [Production Readiness Contract](docs/production-readiness.md),
+[Quality Gates](docs/quality-gates.md), and [Threat Model](docs/threat-model.md).
+
 ## Quick Start
+
+Run the complete non-root application and Postgres stack:
+
+```powershell
+docker compose -f compose.full.yaml up --build
+```
+
+Open `http://localhost:8080`. The Compose credentials are development-only;
+override `PROMTACT_API_TOKEN` and `PROMTACT_SESSION_SECRET` outside a disposable local
+environment.
 
 Run the service with safe demo telemetry:
 
