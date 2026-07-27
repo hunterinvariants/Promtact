@@ -38,13 +38,13 @@ func TestGatewayProxyBlocksLoopbackPeerByDefault(t *testing.T) {
 func TestIsBlockedProxyIPExtraRanges(t *testing.T) {
 	blocked := []string{
 		"100.64.0.1", "100.127.255.254", // RFC 6598
-		"0.1.2.3",       // 0.0.0.0/8
-		"192.0.0.5",     // 192.0.0.0/24
-		"198.18.0.1",    // 198.18.0.0/15
-		"127.0.0.1",     // loopback (existing)
-		"10.0.0.1",      // RFC1918 (existing)
+		"0.1.2.3",         // 0.0.0.0/8
+		"192.0.0.5",       // 192.0.0.0/24
+		"198.18.0.1",      // 198.18.0.0/15
+		"127.0.0.1",       // loopback (existing)
+		"10.0.0.1",        // RFC1918 (existing)
 		"169.254.169.254", // link-local IMDS (existing)
-		"::1",           // IPv6 loopback (existing)
+		"::1",             // IPv6 loopback (existing)
 	}
 	for _, s := range blocked {
 		if !isBlockedProxyIP(net.ParseIP(s)) {
