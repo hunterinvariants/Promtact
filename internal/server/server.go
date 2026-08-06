@@ -36,7 +36,7 @@ import (
 	"github.com/hunterinvariants/promtact/web"
 )
 
-const Version = "0.4.0"
+const Version = "0.5.0"
 
 type App struct {
 	store                  *store.Store

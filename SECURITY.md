@@ -11,8 +11,8 @@ recent minor release line receives security updates.
 
 | Version | Supported |
 |---|---|
-| `0.4.x` (latest) | ✅ |
-| `< 0.4` | ❌ |
+| `0.5.x` (latest) | ✅ |
+| `< 0.5` | ❌ |
 
 ## Reporting a vulnerability
 
