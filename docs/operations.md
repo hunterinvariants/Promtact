@@ -800,3 +800,108 @@ curl -fsS http://green-host/readyz
 
 Use the reverse proxy example in `packaging/nginx/promtact.conf` to place a TLS
 terminating load balancer in front of multiple instances.
+
+## Service accounts
+
+Directory accounts declare a kind: `human` or `service`. Existing accounts are
+human, so upgrading changes nothing.
+
+The distinction is what makes a second factor enforceable. A service account
+authenticates with a bearer API key and can never hold a console session, so
+requiring MFA of people does not break agents. An unrecognised kind is read as
+human, because defaulting the other way would hand a corrupted row the exemption
+machines carry.
+
+```bash
+curl -sX POST "$BASE/api/admin/tenants/acme/users" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"name":"agent-prod","kind":"service","roles":["ingestor"]}'
+```
+
+## Multi-factor authentication
+
+TOTP (RFC 6238) with single-use recovery codes. Enrolment is self-service and
+acts only on the caller's own account.
+
+```bash
+# 1. Enrol. The secret and the recovery codes are returned exactly once.
+curl -sX POST "$BASE/api/auth/mfa/enroll" -H "Authorization: Bearer $TOKEN"
+
+# 2. Activate it by proving a code can be generated from the secret.
+curl -sX POST "$BASE/api/auth/mfa/confirm" -H "Authorization: Bearer $TOKEN" \
+  -d '{"code":"123456"}'
+
+# 3. From then on, logins carry the code.
+curl -sX POST "$BASE/api/session" -d '{"username":"alice","token":"...","mfa_code":"123456"}'
+```
+
+A pending enrolment stays inert until it is confirmed, so a mistyped setup
+cannot lock anyone out. A confirmed one cannot be replaced without first being
+removed, so a stolen session cannot swap out the factor.
+
+**Enable it for a tenant only after its people have enrolled.** Anyone without a
+confirmed enrolment is refused with `403 mfa_enrolment_required` the moment the
+switch is flipped — including you.
+
+A spent TOTP time step is recorded, so a code intercepted mid-window cannot be
+replayed for the rest of its thirty seconds. If the enrolment state cannot be
+read, the login is refused rather than allowed: an unhealthy database must not
+become a way in without a second factor.
+
+## SCIM provisioning
+
+SCIM 2.0 lives at `/api/scim/v2` — not at the conventional `/scim/v2` root,
+because only `/api/` is behind the authentication middleware. Point the identity
+provider's base URL at it and authenticate with a tenant-scoped admin key.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/scim/v2/ServiceProviderConfig` | Advertises what is implemented |
+| `GET /api/scim/v2/Users?filter=userName eq "x"` | Lookup |
+| `POST /api/scim/v2/Users` | Provision |
+| `PATCH /api/scim/v2/Users/{id}` | Change `active` or roles |
+| `DELETE /api/scim/v2/Users/{id}` | Offboard |
+
+The tenant comes from the calling credential, never from the request body.
+Roles supplied by the identity provider pass through the application allowlist,
+since group membership is attacker-influenceable.
+
+Offboarding suspends the account and revokes its API keys in one transaction. It
+does not erase the record: the requirement is that credentials stop working, and
+a deleted row takes its audit trail with it.
+
+## Encryption at rest
+
+Most secrets here are verifiers and are stored only as hashes. A TOTP seed
+cannot be — it has to be readable to check a code — so it is sealed with
+envelope encryption instead.
+
+Each record gets its own data key, wrapped by a key-encryption key that never
+reaches the database. A dump on its own therefore decrypts nothing.
+
+```bash
+# Generate a key, then configure it. Keys are id:value pairs.
+PROMTACT_ENCRYPTION_KEYS="2026a:<value>"
+PROMTACT_ENCRYPTION_KEY_ID="2026a"
+```
+
+Rotation adds the new key alongside the old one and names the new primary:
+
+```bash
+PROMTACT_ENCRYPTION_KEYS="2026b:<new value>,2026a:<old value>"
+PROMTACT_ENCRYPTION_KEY_ID="2026b"
+```
+
+New records use the new key while existing ones stay readable, so rotation is
+gradual rather than a migration that must not fail halfway. **Do not remove a
+key while records still reference it** — decryption then fails loudly, naming
+the missing key, rather than silently returning a wrong secret.
+
+Encryption is opt-in and records written before it was enabled keep working. But
+a key that is configured and rejected stops startup, because continuing would
+write plaintext while an operator believes the data is encrypted.
+
+The key-encryption key sits behind a `KeyProvider` interface. The provider that
+ships holds keys in process memory from the environment; a deployment with a KMS
+or HSM implements that interface instead, without touching any code that reads
+or writes secrets.

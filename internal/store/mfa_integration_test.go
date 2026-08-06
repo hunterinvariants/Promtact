@@ -2,11 +2,14 @@ package store
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/hunterinvariants/promtact/internal/crypto"
 )
 
 func mfaTestFixture(t *testing.T) (*Store, context.Context, string, string) {
@@ -244,4 +247,63 @@ func TestServiceAccountCannotUseTheLoginForm(t *testing.T) {
 	if _, ok, err := s.IdentityByCredentials(ctx, agent.Name, hash); err != nil || ok {
 		t.Fatalf("a service account resolved through the login path (ok=%v err=%v)", ok, err)
 	}
+}
+
+// The point of envelope encryption is what a leaked database dump contains, so
+// the assertion is made against the raw column rather than against the API that
+// wrote it.
+func TestTOTPSecretIsCiphertextInTheDatabase(t *testing.T) {
+	s, ctx, tenant, userID := mfaTestFixture(t)
+
+	provider, err := crypto.NewLocalKeyProvider("2026a", map[string]string{
+		"2026a": "an-encryption-key-for-tests",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetSealer(crypto.NewSealer(provider))
+
+	const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+	if err := s.EnrollMFA(ctx, userID, secret, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	var stored string
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT secret FROM promtact_user_mfa WHERE user_id = $1`, userID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stored, secret) {
+		t.Fatal("the TOTP seed is readable in the database")
+	}
+	if !crypto.IsSealed(stored) {
+		t.Fatalf("the stored value is not sealed: %q", stored)
+	}
+
+	// And it must still be usable, or the encryption has simply broken MFA.
+	opened, confirmed, found, err := s.MFASecret(ctx, userID)
+	if err != nil || !found {
+		t.Fatalf("the sealed secret could not be read back (found=%v err=%v)", found, err)
+	}
+	if confirmed {
+		t.Fatal("a fresh enrolment should not be confirmed")
+	}
+	if opened != secret {
+		t.Fatalf("the decrypted seed does not match: %q", opened)
+	}
+
+	// A key that is rotated away must produce a diagnosable failure rather
+	// than a silently wrong secret.
+	stale, err := crypto.NewLocalKeyProvider("2027a", map[string]string{
+		"2027a": "a-different-encryption-key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetSealer(crypto.NewSealer(stale))
+	if _, _, _, err := s.MFASecret(ctx, userID); !errors.Is(err, crypto.ErrUnknownKey) {
+		t.Fatalf("expected an unknown-key error after rotation, got %v", err)
+	}
+
+	_ = tenant
 }
