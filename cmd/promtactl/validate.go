@@ -126,12 +126,15 @@ type resultRow struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
+const validationSuiteVersion = "promtact-agent-security-v1"
+
 type validationResult struct {
-	Total    int         `json:"total"`
-	Passed   int         `json:"passed"`
-	Missed   int         `json:"missed"`
-	FalsePos int         `json:"false_positives"`
-	Rows     []resultRow `json:"results"`
+	SuiteVersion string      `json:"suite_version"`
+	Total        int         `json:"total"`
+	Passed       int         `json:"passed"`
+	Missed       int         `json:"missed"`
+	FalsePos     int         `json:"false_positives"`
+	Rows         []resultRow `json:"results"`
 }
 
 // validationCases is a benign, synthetic emulation library. Each request carries
@@ -274,7 +277,7 @@ func runValidation(client *http.Client, baseURL, token, baseAsset string, readyW
 	}
 	cases := validationCases(strings.TrimSpace(baseAsset))
 	nonce := time.Now().UnixNano()
-	res := validationResult{Total: len(cases), Rows: make([]resultRow, 0, len(cases))}
+	res := validationResult{SuiteVersion: validationSuiteVersion, Total: len(cases), Rows: make([]resultRow, 0, len(cases))}
 	for i, c := range cases {
 		if c.req.Metadata == nil {
 			c.req.Metadata = make(map[string]string, 1)

@@ -27,6 +27,8 @@ func benchCommand(args []string) error {
 	total := fs.Int("requests", 2000, "total number of decisions to issue")
 	warmup := fs.Int("warmup", 100, "warmup requests excluded from the measurement")
 	jsonOut := fs.Bool("json", false, "emit results as JSON")
+	maxP99 := fs.Duration("max-p99", 0, "fail when measured p99 exceeds this duration (0 disables)")
+	minRPS := fs.Float64("min-rps", 0, "fail when throughput is below this rate (0 disables)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -109,6 +111,7 @@ func benchCommand(args []string) error {
 			"p90_ms":         float64(pct(90).Microseconds()) / 1000,
 			"p99_ms":         float64(pct(99).Microseconds()) / 1000,
 			"max_ms":         float64(latencies[len(latencies)-1].Microseconds()) / 1000,
+			"suite_version":  "promtact-inline-benchmark-v1",
 		}, "", "  ")
 		fmt.Println(string(out))
 	} else {
@@ -120,6 +123,12 @@ func benchCommand(args []string) error {
 	}
 	if errs > 0 {
 		return fmt.Errorf("bench completed with %d errors", errs)
+	}
+	if *maxP99 > 0 && pct(99) > *maxP99 {
+		return fmt.Errorf("p99 gate failed: %s exceeds %s", pct(99), *maxP99)
+	}
+	if *minRPS > 0 && throughput < *minRPS {
+		return fmt.Errorf("throughput gate failed: %.0f req/s is below %.0f req/s", throughput, *minRPS)
 	}
 	return nil
 }

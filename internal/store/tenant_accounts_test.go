@@ -47,6 +47,9 @@ func TestDirectoryDegradesWithoutPostgres(t *testing.T) {
 	if err := s.RevokeAPIKey(ctx, "acme", "key-1"); err == nil {
 		t.Fatal("revoking without a directory should error")
 	}
+	if err := s.IncrementUsage(ctx, "acme", UsageToolDecisions, 1); err == nil {
+		t.Fatal("metering without a directory should error")
+	}
 }
 
 func TestNewIDIsUniqueAndPrefixed(t *testing.T) {
