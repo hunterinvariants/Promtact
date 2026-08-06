@@ -314,6 +314,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/readyz", a.handleReady)
 	mux.HandleFunc("/metrics", a.handleMetrics)
 	mux.HandleFunc("/api/status", a.handleStatus)
+	mux.HandleFunc("/api/openapi.json", a.handleOpenAPI)
 	mux.HandleFunc("/api/session", a.handleSession)
 	mux.HandleFunc("/api/sso/oidc/login", a.handleOIDCLogin)
 	mux.HandleFunc("/api/sso/oidc/callback", a.handleOIDCCallback)
@@ -348,7 +349,9 @@ func (a *App) Routes() http.Handler {
 		mux.Handle("/saml/", a.saml)
 	}
 	mux.Handle("/", a.staticHandler())
-	return a.withRequestLogging(withSecurityHeaders(a.withAuth(withBodyLimit(mux))))
+	// Version rewriting sits outside authentication so authorization always sees
+	// the canonical path; see withAPIVersion.
+	return a.withRequestLogging(withSecurityHeaders(withAPIVersion(a.withAuth(withBodyLimit(mux)))))
 }
 
 func (a *App) LoadDemo() ([]domain.Alert, error) {
