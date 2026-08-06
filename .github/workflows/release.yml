@@ -55,7 +55,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Generate SBOM
-        uses: anchore/sbom-action@deef08a0db64bfad603422135db61477b16cef56
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610
         with:
           path: .
           output-file: dist/SBOM.spdx.json
