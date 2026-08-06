@@ -59,6 +59,7 @@ type App struct {
 	gatewayQueued          uint64
 	journal                *decisionJournal
 	structuredLogs         bool
+	tracer                 *tracer
 	degradedMu             sync.Mutex
 	degradedSince          time.Time
 	degradedReason         string
@@ -99,6 +100,9 @@ type Options struct {
 	DecisionJournalMaxEntries int
 	IdentityCacheTTL          time.Duration
 	StructuredLogs            bool
+	TraceEndpoint             string
+	TraceServiceName          string
+	TraceQueueSize            int
 	DeceptionTokens           []domain.DeceptionToken
 	TenantPolicies            []policy.TenantPolicy
 	LicenseToken              string
@@ -259,6 +263,7 @@ func NewWithOptions(options Options) (*App, error) {
 		validationHistoryPath: strings.TrimSpace(options.ValidationHistoryPath),
 		journal:               newDecisionJournal(options.DecisionJournalPath, options.DecisionJournalMaxEntries),
 		structuredLogs:        options.StructuredLogs,
+		tracer:                newTracer(options.TraceEndpoint, options.TraceServiceName, nil, options.TraceQueueSize),
 		threatPackPath:        strings.TrimSpace(options.ThreatPackPath),
 		auth:                  authenticator,
 		trustedProxies:        trustedProxies,

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -102,6 +103,8 @@ func (w *statusRecorder) Write(b []byte) (int, error) {
 
 type requestLogLine struct {
 	Time          string  `json:"time"`
+	TraceID       string  `json:"trace_id,omitempty"`
+	SpanID        string  `json:"span_id,omitempty"`
 	Level         string  `json:"level"`
 	Message       string  `json:"msg"`
 	CorrelationID string  `json:"correlation_id"`
@@ -134,20 +137,46 @@ func (a *App) withRequestLogging(next http.Handler) http.Handler {
 		r = r.WithContext(ctx)
 		w.Header().Set(correlationHeader, id)
 
+		// A caller's trace continues through the gateway rather than starting a
+		// disconnected one, and the same identifiers appear in the log line.
+		span := newSpanContext(r.Header.Get(traceparentHeader))
+		if a.tracer.enabled() {
+			w.Header().Set(traceparentHeader, span.traceparent())
+		}
+
 		recorder := &statusRecorder{ResponseWriter: w}
 		start := time.Now()
 		next.ServeHTTP(recorder, r)
 		elapsed := time.Since(start)
-
-		if !a.structuredLogs {
-			return
-		}
 		if recorder.status == 0 {
 			recorder.status = http.StatusOK
 		}
 
+		if a.tracer.enabled() {
+			a.tracer.record(finishedSpan{
+				ctx:        span,
+				name:       r.Method + " " + sanitizeLogValue(r.URL.Path),
+				start:      start,
+				end:        start.Add(elapsed),
+				statusCode: recorder.status,
+				attributes: map[string]string{
+					"http.request.method":       r.Method,
+					"url.path":                  sanitizeLogValue(r.URL.Path),
+					"http.response.status_code": fmt.Sprintf("%d", recorder.status),
+					"promtact.correlation_id":      id,
+					"promtact.tenant":              sanitizeLogValue(info.tenant),
+				},
+			})
+		}
+
+		if !a.structuredLogs {
+			return
+		}
+
 		line := requestLogLine{
 			Time:          time.Now().UTC().Format(time.RFC3339Nano),
+			TraceID:       traceIDIfEnabled(a, span),
+			SpanID:        spanIDIfEnabled(a, span),
 			Level:         logLevelForStatus(recorder.status),
 			Message:       "http_request",
 			CorrelationID: id,
@@ -179,4 +208,20 @@ func logLevelForStatus(status int) string {
 	default:
 		return "info"
 	}
+}
+
+// traceIDIfEnabled keeps trace identifiers out of the log line when tracing is
+// off, so operators are not shown ids that lead to nothing.
+func traceIDIfEnabled(a *App, span spanContext) string {
+	if a.tracer.enabled() {
+		return span.traceID
+	}
+	return ""
+}
+
+func spanIDIfEnabled(a *App, span spanContext) string {
+	if a.tracer.enabled() {
+		return span.spanID
+	}
+	return ""
 }
