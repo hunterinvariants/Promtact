@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"os"
 	"strings"
@@ -11,6 +13,19 @@ import (
 
 	"github.com/hunterinvariants/promtact/internal/crypto"
 )
+
+// uniqueTokenHash returns a hash no earlier run can have used. Token hashes are
+// globally unique in the schema, so a fixed constant here makes a test pass on
+// a fresh database and fail on every run after that — the worst kind of test,
+// because it looks green exactly once.
+func uniqueTokenHash(t *testing.T) string {
+	t.Helper()
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		t.Fatal(err)
+	}
+	return hex.EncodeToString(buf)
+}
 
 func mfaTestFixture(t *testing.T) (*Store, context.Context, string, string) {
 	t.Helper()
@@ -116,7 +131,7 @@ func TestConcurrentTOTPStepClaimsElectOneWinner(t *testing.T) {
 func TestRecoveryCodeIsSingleUse(t *testing.T) {
 	s, ctx, _, userID := mfaTestFixture(t)
 
-	const hash = "0000000000000000000000000000000000000000000000000000000000000001"
+	hash := uniqueTokenHash(t)
 	if err := s.EnrollMFA(ctx, userID, "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", []string{hash}); err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +204,7 @@ func TestConfirmedEnrolmentCannotBeSilentlyReplaced(t *testing.T) {
 func TestDeactivationRevokesEveryKey(t *testing.T) {
 	s, ctx, tenant, userID := mfaTestFixture(t)
 
-	const hash = "00000000000000000000000000000000000000000000000000000000000000ff"
+	hash := uniqueTokenHash(t)
 	if _, err := s.CreateAPIKey(ctx, APIKey{Tenant: tenant, UserID: userID, Name: "cli"}, hash); err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +246,7 @@ func TestServiceAccountCannotUseTheLoginForm(t *testing.T) {
 		t.Fatalf("the declared kind was not stored: %q", agent.Kind)
 	}
 
-	const hash = "00000000000000000000000000000000000000000000000000000000000000ab"
+	hash := uniqueTokenHash(t)
 	if _, err := s.CreateAPIKey(ctx, APIKey{Tenant: tenant, UserID: agent.ID, Name: "agent-key"}, hash); err != nil {
 		t.Fatal(err)
 	}
