@@ -28,6 +28,16 @@ jobs:
               return;
             }
 
+            // Bots cannot sign a CLA, and their changes carry no copyrightable
+            // contribution to license. Without this, every automated dependency
+            // update would stay permanently red and train us to ignore red PRs.
+            const login = (context.payload.pull_request.user && context.payload.pull_request.user.login) || '';
+            const isBot = context.payload.pull_request.user?.type === 'Bot' || login.endsWith('[bot]');
+            if (isBot) {
+              core.info(`Skipping CLA check for bot account (${login}).`);
+              return;
+            }
+
             const body = context.payload.pull_request.body || '';
             const bodyMatches = /-\s*\[x\]\s*I have signed the Promtact CLA/i.test(body);
             const labels = new Set((context.payload.pull_request.labels || []).map((label) => label.name.toLowerCase()));
