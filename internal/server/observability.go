@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -25,6 +26,13 @@ func (a *App) recordDecisionMetric(verdict domain.GatewayVerdict) {
 func (a *App) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
+		return
+	}
+	// These counters aggregate every tenant, so they belong to the platform
+	// operator alone: a customer's own admin must not be able to read the
+	// deployment's total traffic, capacity or database state.
+	if a.authenticationConfigured() && !isPlatformAdmin(principalFromRequest(r)) {
+		writeError(w, http.StatusForbidden, errors.New("platform administrator role required"))
 		return
 	}
 	a.gatewayMu.Lock()

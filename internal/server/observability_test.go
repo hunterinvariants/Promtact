@@ -10,22 +10,50 @@ import (
 	"github.com/hunterinvariants/promtact/internal/domain"
 )
 
-func TestMetricsExposeOperationalStateWithoutTenantLabels(t *testing.T) {
-	app, err := NewWithOptions(Options{Users: []auth.UserConfig{{Name: "viewer", Tenant: "secret-tenant", TokenHash: auth.HashToken("token"), Roles: []string{auth.RoleViewer}}}})
+func metricsTestApp(t *testing.T) http.Handler {
+	t.Helper()
+	app, err := NewWithOptions(Options{Users: []auth.UserConfig{
+		{Name: "platform", Tenant: "default", TokenHash: auth.HashToken("platform-token"), Roles: []string{auth.RoleAdmin}},
+		{Name: "viewer", Tenant: "secret-tenant", TokenHash: auth.HashToken("viewer-token"), Roles: []string{auth.RoleViewer}},
+		{Name: "customer-admin", Tenant: "secret-tenant", TokenHash: auth.HashToken("customer-admin-token"), Roles: []string{auth.RoleAdmin}},
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := app.Routes()
-	unauthorized := httptest.NewRecorder()
-	handler.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	if unauthorized.Code != http.StatusUnauthorized {
-		t.Fatalf("metrics must require authentication, got %d", unauthorized.Code)
-	}
+	return app.Routes()
+}
 
+func getMetrics(handler http.Handler, token string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	req.Header.Set("Authorization", "Bearer token")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
+	return rec
+}
+
+// The counters aggregate every tenant, so they are platform-operator data: a
+// customer must not learn the deployment's total traffic, capacity or database
+// state — not even a customer whose own role is admin.
+func TestMetricsRestrictedToPlatformOperator(t *testing.T) {
+	handler := metricsTestApp(t)
+
+	if code := getMetrics(handler, "").Code; code != http.StatusUnauthorized {
+		t.Fatalf("metrics must require authentication, got %d", code)
+	}
+	if code := getMetrics(handler, "viewer-token").Code; code != http.StatusForbidden {
+		t.Fatalf("a customer viewer must not read platform metrics, got %d", code)
+	}
+	if code := getMetrics(handler, "customer-admin-token").Code; code != http.StatusForbidden {
+		t.Fatalf("a customer's own admin must not read platform metrics, got %d", code)
+	}
+}
+
+func TestMetricsExposeOperationalStateWithoutTenantLabels(t *testing.T) {
+	handler := metricsTestApp(t)
+
+	rec := getMetrics(handler, "platform-token")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("metrics returned %d: %s", rec.Code, rec.Body.String())
 	}
