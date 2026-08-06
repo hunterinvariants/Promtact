@@ -1,0 +1,15 @@
+name = "promtact-alerts"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Serve the receiver from your own domain, e.g. alerts.example.com.
+# Replace the zone and pattern, then `npx wrangler deploy`.
+# [[routes]]
+# pattern = "alerts.example.com/*"
+# custom_domain = true
+
+# Secrets are set with `wrangler secret put`, never committed:
+#   ALERT_SHARED_SECRET   (required) the bearer token the sender presents
+#   NTFY_TOPIC            (optional) push to a phone via ntfy.sh
+#   DISCORD_WEBHOOK_URL   (optional)
+#   SLACK_WEBHOOK_URL     (optional)
