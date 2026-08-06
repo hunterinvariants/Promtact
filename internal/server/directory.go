@@ -81,7 +81,7 @@ func (d *storeDirectory) IdentityByTokenHash(ctx context.Context, tokenHash stri
 		if !ok {
 			return auth.Identity{}, false
 		}
-		resolved := auth.Identity{Name: identity.Name, Tenant: identity.Tenant, Roles: identity.Roles}
+		resolved := auth.Identity{Name: identity.Name, Tenant: identity.Tenant, Roles: identity.Roles, Kind: identity.Kind}
 		d.remember(tokenHash, resolved)
 		return resolved, true
 	}
@@ -102,7 +102,7 @@ func (d *storeDirectory) IdentityByCredentials(ctx context.Context, username str
 		if !ok {
 			return auth.Identity{}, false
 		}
-		resolved := auth.Identity{Name: identity.Name, Tenant: identity.Tenant, Roles: identity.Roles}
+		resolved := auth.Identity{Name: identity.Name, Tenant: identity.Tenant, Roles: identity.Roles, Kind: identity.Kind}
 		d.remember(username+"|"+tokenHash, resolved)
 		return resolved, true
 	}
