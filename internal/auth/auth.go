@@ -337,6 +337,13 @@ func RequiredRoles(method string, path string) []string {
 	if strings.HasPrefix(path, "/api/admin/") {
 		return []string{RoleAdmin}
 	}
+	// Metrics describe the whole deployment — total decision volume across all
+	// customers, capacity and database state. In a multi-tenant install the
+	// generic read rule below would hand that to any customer's viewer, so it is
+	// restricted here and narrowed to the platform operator in the handler.
+	if path == "/metrics" {
+		return []string{RoleAdmin}
+	}
 	if path == "/api/audit" {
 		return []string{RoleAnalyst, RoleOperator}
 	}
