@@ -73,6 +73,21 @@ func (a *App) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "promtact_gateway_decision_duration_seconds_sum %g\n", sum)
 	fmt.Fprintf(w, "promtact_gateway_decision_duration_seconds_count %d\n", len(samples))
 
+	degraded, _, _ := a.DegradedState()
+	degradedValue := 0
+	if degraded {
+		degradedValue = 1
+	}
+	fmt.Fprintln(w, "# HELP promtact_degraded_mode Whether durable persistence is currently failing while enforcement continues.")
+	fmt.Fprintln(w, "# TYPE promtact_degraded_mode gauge")
+	fmt.Fprintf(w, "promtact_degraded_mode %d\n", degradedValue)
+	fmt.Fprintln(w, "# HELP promtact_decision_journal_depth Records awaiting reconciliation into storage.")
+	fmt.Fprintln(w, "# TYPE promtact_decision_journal_depth gauge")
+	fmt.Fprintf(w, "promtact_decision_journal_depth %d\n", a.journal.Depth())
+	fmt.Fprintln(w, "# HELP promtact_decision_journal_dropped_total Records refused because the journal was full.")
+	fmt.Fprintln(w, "# TYPE promtact_decision_journal_dropped_total counter")
+	fmt.Fprintf(w, "promtact_decision_journal_dropped_total %d\n", a.journal.Dropped())
+
 	chain := a.store.AuditChain()
 	valid := 0
 	if chain.Valid {
