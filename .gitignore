@@ -21,3 +21,7 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+
+# Node / UI build
+ui/node_modules/
+ui/.vite/

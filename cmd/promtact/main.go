@@ -23,7 +23,7 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
-	webDir := flag.String("web", "web", "static dashboard directory")
+	webDir := flag.String("web", "", "serve the console from this directory instead of the one embedded in the binary")
 	dataPath := flag.String("data", "", "optional JSON snapshot path for local persistence")
 	postgresDSN := flag.String("postgres-dsn", os.Getenv("PROMTACT_POSTGRES_DSN"), "Postgres DSN for production persistence")
 	policyPath := flag.String("policy", "", "optional JSON policy configuration path")
