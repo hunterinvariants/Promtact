@@ -516,6 +516,27 @@ Each line carries the correlation id, method, path, status, duration, principal,
 tenant and client IP. Query strings and headers are deliberately excluded — they
 carry tokens.
 
+## Signing the policy file
+
+`policy.json` decides which tools are approved, which principals exist and what
+roles they hold, which tool fingerprints are pinned and which agent identities
+are registered. It is read from local disk at startup — including a restart
+during a database outage, when it is the only source of that truth. Sign it so
+tampering is detected instead of silently taking effect:
+
+```bash
+# a host-held secret, separate from the threat-pack key on purpose: a compromised
+# detection-content key must not also be able to forge identities
+export PROMTACT_POLICY_HMAC_SECRET='...'
+promtactl sign-policy --file /etc/promtact/policy.json   # writes policy.json.sig
+```
+
+Put `PROMTACT_POLICY_HMAC_SECRET` in `/etc/promtact/promtact.env` and restart. From then on
+a missing or mismatched signature stops startup. Re-sign after every edit — the
+signature covers the bytes on disk exactly. Set `PROMTACT_POLICY_REQUIRE_SIGNED=true`
+to refuse starting even when no key is configured, so a misconfigured host fails
+loudly rather than running unverified.
+
 ## Surviving a storage outage
 
 The gateway computes its verdict in process, so a database outage does not change

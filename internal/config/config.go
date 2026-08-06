@@ -31,6 +31,11 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	// Verify before parsing: an altered policy must not take effect, and the
+	// signature covers the bytes on disk exactly as written.
+	if err := verifyPolicySignature(path, data); err != nil {
+		return Config{}, err
+	}
 	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 
 	var config Config
