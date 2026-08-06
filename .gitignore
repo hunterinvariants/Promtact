@@ -25,3 +25,6 @@ __pycache__/
 # Node / UI build
 ui/node_modules/
 ui/.vite/
+
+# Wrangler local state
+.wrangler/
