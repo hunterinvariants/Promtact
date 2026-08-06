@@ -30,6 +30,7 @@ type TenantUser struct {
 	Tenant    string    `json:"tenant"`
 	Name      string    `json:"name"`
 	Roles     []string  `json:"roles"`
+	Kind      string    `json:"kind"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -50,12 +51,28 @@ type Identity struct {
 	Name   string
 	Tenant string
 	Roles  []string
+	// Kind separates people from machines. Without it a second factor cannot be
+	// required of anyone, because enforcing it would also break every agent.
+	Kind string
 }
 
 const (
 	StatusActive    = "active"
 	StatusSuspended = "suspended"
+
+	// KindHuman is a person who signs in to the console; KindService is a
+	// machine identity used by an agent, which authenticates with an API key
+	// only and can never hold an interactive session.
+	KindHuman   = "human"
+	KindService = "service"
 )
+
+func normalizeKind(kind string) string {
+	if strings.ToLower(strings.TrimSpace(kind)) == KindService {
+		return KindService
+	}
+	return KindHuman
+}
 
 var errNoDirectory = errors.New("tenant directory requires a postgres backend")
 
@@ -180,12 +197,13 @@ func (s *Store) CreateTenantUser(ctx context.Context, user TenantUser) (TenantUs
 	if len(user.Roles) == 0 {
 		user.Roles = []string{"viewer"}
 	}
+	user.Kind = normalizeKind(user.Kind)
 	user.CreatedAt = time.Now().UTC()
 
 	_, err = db.ExecContext(ctx, `
-INSERT INTO promtact_tenant_users (id, tenant, name, roles, status, created_at)
-VALUES ($1, $2, $3, $4, $5, $6)`,
-		user.ID, user.Tenant, user.Name, encodeRoles(user.Roles), user.Status, user.CreatedAt)
+INSERT INTO promtact_tenant_users (id, tenant, name, roles, kind, status, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		user.ID, user.Tenant, user.Name, encodeRoles(user.Roles), user.Kind, user.Status, user.CreatedAt)
 	if err != nil {
 		return TenantUser{}, err
 	}
@@ -198,7 +216,7 @@ func (s *Store) ListTenantUsers(ctx context.Context, tenant string) ([]TenantUse
 		return nil, err
 	}
 	rows, err := db.QueryContext(ctx, `
-SELECT id, tenant, name, roles, status, created_at
+SELECT id, tenant, name, roles, kind, status, created_at
 FROM promtact_tenant_users WHERE tenant = $1 ORDER BY created_at ASC`,
 		strings.ToLower(strings.TrimSpace(tenant)))
 	if err != nil {
@@ -210,7 +228,7 @@ FROM promtact_tenant_users WHERE tenant = $1 ORDER BY created_at ASC`,
 	for rows.Next() {
 		var u TenantUser
 		var roles string
-		if err := rows.Scan(&u.ID, &u.Tenant, &u.Name, &roles, &u.Status, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Tenant, &u.Name, &roles, &u.Kind, &u.Status, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		u.Roles = decodeRoles(roles)
@@ -307,16 +325,16 @@ func (s *Store) IdentityByTokenHash(ctx context.Context, tokenHash string) (Iden
 		return Identity{}, false, nil
 	}
 
-	var keyID, name, tenant, roles string
+	var keyID, name, tenant, roles, kind string
 	err = db.QueryRowContext(ctx, `
-SELECT k.id, u.name, u.tenant, u.roles
+SELECT k.id, u.name, u.tenant, u.roles, u.kind
 FROM promtact_api_keys k
 JOIN promtact_tenant_users u ON u.id = k.user_id
 JOIN promtact_tenant_accounts t ON t.tenant = u.tenant
 WHERE k.token_sha256 = $1
   AND k.revoked_at IS NULL
   AND u.status = 'active'
-  AND t.status = 'active'`, tokenHash).Scan(&keyID, &name, &tenant, &roles)
+  AND t.status = 'active'`, tokenHash).Scan(&keyID, &name, &tenant, &roles, &kind)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Identity{}, false, nil
 	}
@@ -329,11 +347,15 @@ WHERE k.token_sha256 = $1
 UPDATE promtact_api_keys SET last_used_at = now()
 WHERE id = $1 AND (last_used_at IS NULL OR last_used_at < now() - interval '5 minutes')`, keyID)
 
-	return Identity{Name: name, Tenant: tenant, Roles: decodeRoles(roles)}, true, nil
+	return Identity{Name: name, Tenant: tenant, Roles: decodeRoles(roles), Kind: kind}, true, nil
 }
 
 // IdentityByCredentials resolves a user name plus API key hash, for the
 // dashboard login form. The key must belong to that same user.
+//
+// Service accounts are excluded at the query level. A machine identity has no
+// person behind it to present a second factor, so allowing it to open an
+// interactive session would leave a permanent MFA-exempt door into the console.
 func (s *Store) IdentityByCredentials(ctx context.Context, username string, tokenHash string) (Identity, bool, error) {
 	db, err := s.directoryDB()
 	if err != nil {
@@ -354,6 +376,7 @@ JOIN promtact_tenant_accounts t ON t.tenant = u.tenant
 WHERE k.token_sha256 = $1
   AND lower(u.name) = lower($2)
   AND k.revoked_at IS NULL
+  AND u.kind = 'human'
   AND u.status = 'active'
   AND t.status = 'active'`, tokenHash, username).Scan(&name, &tenant, &roles)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -362,7 +385,7 @@ WHERE k.token_sha256 = $1
 	if err != nil {
 		return Identity{}, false, err
 	}
-	return Identity{Name: name, Tenant: tenant, Roles: decodeRoles(roles)}, true, nil
+	return Identity{Name: name, Tenant: tenant, Roles: decodeRoles(roles), Kind: KindHuman}, true, nil
 }
 
 func encodeRoles(roles []string) string {

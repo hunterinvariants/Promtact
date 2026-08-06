@@ -304,6 +304,51 @@ CREATE TABLE IF NOT EXISTS promtact_tenant_usage (
 CREATE INDEX IF NOT EXISTS idx_promtact_tenant_usage_period
 ON promtact_tenant_usage (period_start DESC, tenant);`,
 	},
+	{
+		Version: 7,
+		Name:    "service_accounts_and_mfa",
+		SQL: `
+-- Humans and machines were previously the same kind of record, which makes a
+-- second factor impossible to require: enforcing it would break every agent.
+-- Existing rows become 'human' so behaviour does not change on upgrade.
+ALTER TABLE promtact_tenant_users
+  ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'human'
+  CHECK (kind IN ('human', 'service'));
+
+-- MFA is enabled per tenant. Until an operator turns it on nothing changes,
+-- so upgrading cannot lock anyone out of their own console.
+ALTER TABLE promtact_tenant_accounts
+  ADD COLUMN IF NOT EXISTS mfa_required BOOLEAN NOT NULL DEFAULT false;
+
+-- A TOTP secret is only usable once its owner has proven they can generate a
+-- code from it, so confirmed_at gates enforcement rather than enrolment.
+CREATE TABLE IF NOT EXISTS promtact_user_mfa (
+  user_id TEXT PRIMARY KEY REFERENCES promtact_tenant_users (id) ON DELETE CASCADE,
+  secret TEXT NOT NULL,
+  confirmed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Replay defence: a TOTP code stays valid for its whole time step, so an
+-- intercepted code must be refused for a second use within that window.
+CREATE TABLE IF NOT EXISTS promtact_mfa_used_codes (
+  user_id TEXT NOT NULL REFERENCES promtact_tenant_users (id) ON DELETE CASCADE,
+  time_step BIGINT NOT NULL,
+  used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, time_step)
+);
+
+-- Recovery codes are single-use and stored only as hashes, like API keys.
+CREATE TABLE IF NOT EXISTS promtact_mfa_recovery_codes (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES promtact_tenant_users (id) ON DELETE CASCADE,
+  code_sha256 TEXT NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_promtact_mfa_recovery_user
+ON promtact_mfa_recovery_codes (user_id) WHERE used_at IS NULL;`,
+	},
 }
 
 func (s *Store) postgresLoad(ctx context.Context) error {

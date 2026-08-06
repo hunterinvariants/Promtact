@@ -18,11 +18,18 @@ import (
 )
 
 const (
-	RoleViewer      = "viewer"
-	RoleIngestor    = "ingestor"
-	RoleAnalyst     = "analyst"
-	RoleOperator    = "operator"
-	RoleAdmin       = "admin"
+	RoleViewer   = "viewer"
+	RoleIngestor = "ingestor"
+	RoleAnalyst  = "analyst"
+	RoleOperator = "operator"
+	RoleAdmin    = "admin"
+
+	// KindHuman is a person who may hold an interactive console session;
+	// KindService is a machine identity that authenticates with a bearer key
+	// only. The distinction is what makes a second factor enforceable at all.
+	KindHuman   = "human"
+	KindService = "service"
+
 	loginBackoffCap = 1 * time.Minute
 	loginAttemptTTL = 24 * time.Hour
 )
@@ -38,7 +45,11 @@ type Principal struct {
 	Name   string   `json:"name"`
 	Tenant string   `json:"tenant,omitempty"`
 	Roles  []string `json:"roles"`
+	Kind   string   `json:"kind,omitempty"`
 }
+
+// IsService reports whether this principal is a machine identity.
+func (p Principal) IsService() bool { return p.Kind == KindService }
 
 type SessionInfo struct {
 	Principal Principal `json:"principal"`
@@ -52,6 +63,7 @@ type Identity struct {
 	Name   string
 	Tenant string
 	Roles  []string
+	Kind   string
 }
 
 // Directory resolves principals that are provisioned at runtime rather than
@@ -196,7 +208,15 @@ func (a *Authenticator) Login(ctx context.Context, username string, token string
 	return a.MintSession(principal)
 }
 
+// MintSession issues a console session. Service accounts are refused here as
+// well as in the directory query: a session is the surface a second factor
+// protects, and a machine identity has no person behind it to present one. The
+// check is repeated at this layer so a future login path cannot reintroduce the
+// gap by resolving an identity some other way.
 func (a *Authenticator) MintSession(principal Principal) (SessionInfo, string, bool) {
+	if principal.IsService() {
+		return SessionInfo{}, "", false
+	}
 	principal.Tenant = strings.TrimSpace(principal.Tenant)
 	if principal.Tenant == "" {
 		principal.Tenant = "default"
@@ -502,7 +522,14 @@ func principalFromIdentity(identity Identity) Principal {
 	if tenant == "" {
 		tenant = "default"
 	}
-	return Principal{Name: strings.TrimSpace(identity.Name), Tenant: tenant, Roles: roles}
+	kind := strings.ToLower(strings.TrimSpace(identity.Kind))
+	if kind != KindService {
+		// Anything unrecognised is treated as a person. A machine identity must
+		// be declared explicitly, so a missing or corrupted value cannot quietly
+		// grant an account the MFA exemption that service accounts carry.
+		kind = KindHuman
+	}
+	return Principal{Name: strings.TrimSpace(identity.Name), Tenant: tenant, Roles: roles, Kind: kind}
 }
 
 func readToken(r *http.Request) string {
