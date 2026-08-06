@@ -313,6 +313,8 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/audit/chain", a.handleAuditChain)
 	mux.HandleFunc("/api/tenants", a.handleTenants)
 	mux.HandleFunc("/api/tenants/", a.handleTenantBackend)
+	mux.HandleFunc("/api/admin/tenants", a.handleAdminTenants)
+	mux.HandleFunc("/api/admin/tenants/", a.handleAdminTenantResource)
 	mux.HandleFunc("/api/responses/approve", a.handleResponseApproval)
 	mux.HandleFunc("/api/responses", a.handleResponses)
 	mux.HandleFunc("/api/policies", a.handlePolicies)
