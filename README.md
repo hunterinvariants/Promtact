@@ -2,6 +2,14 @@
 
 [![ci](https://github.com/hunterinvariants/promtact/actions/workflows/ci.yml/badge.svg)](https://github.com/hunterinvariants/promtact/actions/workflows/ci.yml)
 [![quality](https://github.com/hunterinvariants/promtact/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/hunterinvariants/promtact/actions/workflows/quality.yml)
+[![codeql](https://github.com/hunterinvariants/promtact/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/hunterinvariants/promtact/actions/workflows/codeql.yml)
+[![race detector](https://img.shields.io/badge/tests-race%20detector-2a78d6)](.github/workflows/ci.yml)
+[![fuzzed](https://img.shields.io/badge/parsers-fuzzed-2a78d6)](internal/policy/gateway_fuzz_test.go)
+[![signed releases](https://img.shields.io/badge/releases-cosign%20signed-0ca30c)](SECURITY.md#verifying-releases)
+[![sbom](https://img.shields.io/badge/SBOM-SPDX-0ca30c)](SECURITY.md#verifying-releases)
+[![security policy](https://img.shields.io/badge/security-policy-0ca30c)](SECURITY.md)
+[![license](https://img.shields.io/badge/license-AGPL--3.0--or--later%20%2F%20commercial-blue)](LICENSE)
+[![release](https://img.shields.io/github/v/release/hunterinvariants/promtact?sort=semver)](https://github.com/hunterinvariants/promtact/releases/latest)
 
 Promtact is a defensive control plane for detecting and
 containing agentic threat behavior across AI-agent tool calls, host telemetry,
