@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,7 +28,7 @@ func TestAuthenticateUserToken(t *testing.T) {
 
 func TestSessionLoginAndAuthenticate(t *testing.T) {
 	a := New([]UserConfig{{Name: "alice", TokenHash: HashToken("secret"), Roles: []string{RoleOperator}}}, "")
-	info, sessionID, ok := a.Login("alice", "secret")
+	info, sessionID, ok := a.Login(context.Background(), "alice", "secret")
 	if !ok {
 		t.Fatal("expected login to succeed")
 	}
