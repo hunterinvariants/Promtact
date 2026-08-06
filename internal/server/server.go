@@ -54,6 +54,9 @@ type App struct {
 	gatewayMu              sync.Mutex
 	gatewaySamples         []time.Duration
 	gatewayRejected        int
+	gatewayAllowed         uint64
+	gatewayDenied          uint64
+	gatewayQueued          uint64
 	webhook                exporter.Webhook
 	ticketWebhook          exporter.Webhook
 	responseWebhook        exporter.Webhook
@@ -291,6 +294,7 @@ func (a *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", a.handleHealth)
 	mux.HandleFunc("/readyz", a.handleReady)
+	mux.HandleFunc("/metrics", a.handleMetrics)
 	mux.HandleFunc("/api/status", a.handleStatus)
 	mux.HandleFunc("/api/session", a.handleSession)
 	mux.HandleFunc("/api/sso/oidc/login", a.handleOIDCLogin)
@@ -810,6 +814,7 @@ func (a *App) handleGatewayDecision(w http.ResponseWriter, r *http.Request) {
 	req.Tenant = tenant
 
 	decision := a.policy.GateToolCall(req)
+	a.recordToolDecision(r, decision.Verdict)
 	a.prepareAlerts(decision.Alerts, tenant)
 	added, err := a.addAlertsForTenant(decision.Alerts, tenant)
 	if err != nil {
@@ -875,6 +880,7 @@ func (a *App) handleGatewayExecute(w http.ResponseWriter, r *http.Request) {
 	req.Tenant = tenant
 
 	decision := a.policy.GateToolCall(req)
+	a.recordToolDecision(r, decision.Verdict)
 	a.prepareAlerts(decision.Alerts, tenant)
 	added, err := a.addAlertsForTenant(decision.Alerts, tenant)
 	if err != nil {
@@ -1003,6 +1009,7 @@ func (a *App) handleGatewayProxy(w http.ResponseWriter, r *http.Request) {
 	req.ToolCall.Tenant = tenant
 
 	decision := a.policy.GateToolCall(req.ToolCall)
+	a.recordToolDecision(r, decision.Verdict)
 	a.prepareAlerts(decision.Alerts, tenant)
 	added, err := a.addAlertsForTenant(decision.Alerts, tenant)
 	if err != nil {
@@ -2368,7 +2375,7 @@ func (a *App) withAuth(next http.Handler) http.Handler {
 			writeError(w, http.StatusServiceUnavailable, errors.New("proxy endpoints require authentication to be configured"))
 			return
 		}
-		if !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/session" || strings.HasPrefix(r.URL.Path, "/api/sso/") || !a.authenticationConfigured() {
+		if (!strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/metrics") || r.URL.Path == "/api/session" || strings.HasPrefix(r.URL.Path, "/api/sso/") || !a.authenticationConfigured() {
 			next.ServeHTTP(w, r)
 			return
 		}

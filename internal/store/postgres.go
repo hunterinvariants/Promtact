@@ -289,6 +289,21 @@ CREATE TABLE IF NOT EXISTS promtact_api_keys (
 CREATE INDEX IF NOT EXISTS idx_promtact_api_keys_tenant ON promtact_api_keys (tenant);
 CREATE INDEX IF NOT EXISTS idx_promtact_api_keys_active ON promtact_api_keys (token_sha256) WHERE revoked_at IS NULL;`,
 	},
+	{
+		Version: 6,
+		Name:    "tenant_usage_metering",
+		SQL: `
+CREATE TABLE IF NOT EXISTS promtact_tenant_usage (
+  tenant TEXT NOT NULL REFERENCES promtact_tenant_accounts (tenant) ON DELETE CASCADE,
+  period_start DATE NOT NULL,
+  metric TEXT NOT NULL,
+  quantity BIGINT NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant, period_start, metric)
+);
+CREATE INDEX IF NOT EXISTS idx_promtact_tenant_usage_period
+ON promtact_tenant_usage (period_start DESC, tenant);`,
+	},
 }
 
 func (s *Store) postgresLoad(ctx context.Context) error {

@@ -40,6 +40,7 @@ func TestAdminPathsRequireAdminRole(t *testing.T) {
 		"/api/admin/tenants",
 		"/api/admin/tenants/acme/users",
 		"/api/admin/tenants/acme/keys",
+		"/api/admin/tenants/acme/usage",
 	} {
 		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodDelete} {
 			roles := auth.RequiredRoles(method, path)

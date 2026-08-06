@@ -258,7 +258,12 @@ Endpoints (RBAC roles apply only when authentication is configured):
 | POST | `/api/responses/approve` | operator | Approve and execute a pending response action |
 | GET/POST | `/api/tenants` | admin | List or register tenant backends |
 | GET/PUT/DELETE | `/api/tenants/{id}` | admin | Get, update, or delete one tenant backend |
+| GET/POST | `/api/admin/tenants` | platform admin | List or provision customer tenants |
+| GET | `/api/admin/tenants/{id}/usage?period=YYYY-MM` | platform admin | Read monthly billable usage counters |
+| GET | `/metrics` | any authenticated | Prometheus metrics without tenant or secret labels |
 | POST | `/api/demo` | ingestor, analyst, operator | Load demo events for the tenant |
+
+The measurable product claims, acceptance commands, limitations, and release gates are defined in [Verifiable Technical Claims](docs/technical-claims.md).
 
 ## Runtime Options
 

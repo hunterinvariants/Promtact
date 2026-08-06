@@ -172,6 +172,9 @@ func (a *App) handleAdminTenantResource(w http.ResponseWriter, r *http.Request) 
 	}
 
 	switch {
+	case resource == "usage":
+		a.handleAdminTenantUsage(w, r, tenant)
+
 	case resource == "status" && r.Method == http.MethodPost:
 		var req tenantStatusRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
