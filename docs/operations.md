@@ -496,6 +496,26 @@ Verify from outside the host:
 curl -sI https://app.example.com/     # expect HTTP/2 200 plus server: cloudflare
 ```
 
+## Request logging and correlation
+
+Every response carries an `X-Correlation-Id`. A caller may supply its own so its
+trace joins ours; the value is accepted only if it is short and alphanumeric,
+because it is written into log lines and an unvalidated one would let a caller
+forge them. Anything else is replaced by a generated id. The same id is recorded
+on the audit event, so a decision can be followed from the caller's logs through
+the access log into the audit trail.
+
+Enable one JSON line per request for log shipping:
+
+```bash
+# in /etc/promtact/promtact.env
+PROMTACT_STRUCTURED_LOGS=true
+```
+
+Each line carries the correlation id, method, path, status, duration, principal,
+tenant and client IP. Query strings and headers are deliberately excluded — they
+carry tokens.
+
 ## Surviving a storage outage
 
 The gateway computes its verdict in process, so a database outage does not change

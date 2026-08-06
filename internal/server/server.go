@@ -58,6 +58,7 @@ type App struct {
 	gatewayDenied          uint64
 	gatewayQueued          uint64
 	journal                *decisionJournal
+	structuredLogs         bool
 	degradedMu             sync.Mutex
 	degradedSince          time.Time
 	degradedReason         string
@@ -97,6 +98,7 @@ type Options struct {
 	DecisionJournalPath       string
 	DecisionJournalMaxEntries int
 	IdentityCacheTTL          time.Duration
+	StructuredLogs            bool
 	DeceptionTokens           []domain.DeceptionToken
 	TenantPolicies            []policy.TenantPolicy
 	LicenseToken              string
@@ -256,6 +258,7 @@ func NewWithOptions(options Options) (*App, error) {
 		validationResultPath:  strings.TrimSpace(options.ValidationResultPath),
 		validationHistoryPath: strings.TrimSpace(options.ValidationHistoryPath),
 		journal:               newDecisionJournal(options.DecisionJournalPath, options.DecisionJournalMaxEntries),
+		structuredLogs:        options.StructuredLogs,
 		threatPackPath:        strings.TrimSpace(options.ThreatPackPath),
 		auth:                  authenticator,
 		trustedProxies:        trustedProxies,
@@ -345,7 +348,7 @@ func (a *App) Routes() http.Handler {
 		mux.Handle("/saml/", a.saml)
 	}
 	mux.Handle("/", a.staticHandler())
-	return withSecurityHeaders(a.withAuth(withBodyLimit(mux)))
+	return a.withRequestLogging(withSecurityHeaders(a.withAuth(withBodyLimit(mux))))
 }
 
 func (a *App) LoadDemo() ([]domain.Alert, error) {
@@ -2180,6 +2183,9 @@ func (a *App) recordAudit(r *http.Request, principal auth.Principal, action stri
 	if principal.Tenant != "" {
 		metadata["tenant"] = principal.Tenant
 	}
+	if id := CorrelationID(r); id != "" {
+		metadata["correlation_id"] = id
+	}
 	event := domain.AuditEvent{
 		ID:           a.nextID("aud"),
 		Timestamp:    time.Now().UTC(),
@@ -2377,6 +2383,7 @@ func (a *App) withAuth(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, errors.New("insufficient role"))
 			return
 		}
+		notePrincipal(r, principal.Name, principal.Tenant)
 		r = r.WithContext(context.WithValue(r.Context(), principalContextKey{}, principal))
 		next.ServeHTTP(w, r)
 	})
