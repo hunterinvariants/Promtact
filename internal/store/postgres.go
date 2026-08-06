@@ -64,15 +64,6 @@ func (s *Store) postgresMigrate(ctx context.Context) error {
 	}
 	defer s.db.ExecContext(context.Background(), `SELECT pg_advisory_unlock(72743001)`)
 
-	// A deployment created before the project was renamed carries the former
-	// table prefix. This has to run before the migration ledger is consulted:
-	// the new code would otherwise find no ledger, conclude the database is
-	// empty, and create a fresh empty schema alongside the real data — which
-	// looks exactly like total data loss to whoever is on call.
-	if err := s.migrateLegacyTablePrefix(ctx); err != nil {
-		return err
-	}
-
 	if _, err := s.db.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS promtact_schema_migrations (
   version INTEGER PRIMARY KEY,
@@ -102,49 +93,6 @@ CREATE TABLE IF NOT EXISTS promtact_schema_migrations (
 	}
 	s.schemaVersion = version
 	return nil
-}
-
-// migrateLegacyTablePrefix renames tables and indexes carrying the project's
-// former prefix. It is a no-op unless the old ledger exists and the new one
-// does not, so a fresh install never touches it and a migrated one never
-// repeats it.
-//
-// It is not expressed as a numbered migration because it must happen before the
-// ledger those numbers live in can be read.
-func (s *Store) migrateLegacyTablePrefix(ctx context.Context) error {
-	var legacy, current sql.NullString
-	if err := s.db.QueryRowContext(ctx,
-		`SELECT to_regclass('oatd_schema_migrations')::text, to_regclass('promtact_schema_migrations')::text`).
-		Scan(&legacy, &current); err != nil {
-		return err
-	}
-	if !legacy.Valid || current.Valid {
-		return nil
-	}
-
-	// One transaction: a half-renamed schema is worse than either end state,
-	// because some tables would be found and others silently recreated empty.
-	_, err := s.db.ExecContext(ctx, `
-DO $$
-DECLARE r RECORD;
-BEGIN
-  FOR r IN
-    SELECT tablename FROM pg_tables
-    WHERE schemaname = current_schema() AND tablename LIKE 'oatd\_%'
-  LOOP
-    EXECUTE format('ALTER TABLE %I RENAME TO %I',
-      r.tablename, 'promtact_' || substring(r.tablename from 6));
-  END LOOP;
-
-  FOR r IN
-    SELECT indexname FROM pg_indexes
-    WHERE schemaname = current_schema() AND indexname LIKE 'idx\_oatd\_%'
-  LOOP
-    EXECUTE format('ALTER INDEX %I RENAME TO %I',
-      r.indexname, 'idx_promtact_' || substring(r.indexname from 10));
-  END LOOP;
-END $$;`)
-	return err
 }
 
 func (s *Store) postgresAppliedMigrations(ctx context.Context) (map[int]bool, error) {
