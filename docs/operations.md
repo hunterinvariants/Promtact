@@ -565,6 +565,32 @@ authentication like the rest of the API — the same document is in the public
 repository, so gating it protects nothing, but keeping the set of unauthenticated
 paths as small as possible does.
 
+## Distributed tracing
+
+Tracing is off unless an OTLP/HTTP endpoint is configured:
+
+```bash
+# in /etc/promtact/promtact.env
+PROMTACT_TRACE_ENDPOINT=http://collector:4318
+PROMTACT_TRACE_SERVICE_NAME=promtact
+```
+
+Spans are exported to `<endpoint>/v1/traces` in OTLP's JSON encoding, which any
+OpenTelemetry collector, Tempo or Jaeger accepts. The wire format is implemented
+directly rather than through the OpenTelemetry SDK: that SDK would add roughly
+twenty modules including protobuf and gRPC to a dependency tree that currently
+has two direct entries, which is a poor trade for a feature that is off by
+default.
+
+A caller's `traceparent` is continued rather than replaced, so an agent's own
+trace and the enforcement decision join up. Each span carries the correlation id,
+so a log line, an audit record and a trace all point at the same request.
+
+Export is asynchronous and bounded. A slow or unreachable collector never adds
+latency to an enforcement decision; once the queue is full, spans are dropped and
+counted in `promtact_trace_spans_dropped_total`. Alert on that counter — silently
+dropped telemetry is worse than none, because it looks like quiet.
+
 ## Signing the policy file
 
 `policy.json` decides which tools are approved, which principals exist and what

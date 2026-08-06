@@ -83,6 +83,8 @@ func main() {
 	validationResultPath := flag.String("validation-result-path", os.Getenv("PROMTACT_VALIDATION_RESULT_PATH"), "path to the detection-validation result JSON served at /api/gateway/validation")
 	validationHistoryPath := flag.String("validation-history-path", os.Getenv("PROMTACT_VALIDATION_HISTORY_PATH"), "path to the detection-validation history JSONL for the dashboard trend")
 	decisionJournalPath := flag.String("decision-journal-path", os.Getenv("PROMTACT_DECISION_JOURNAL_PATH"), "local journal for gateway records that could not be persisted, so enforcement survives a storage outage")
+	traceEndpoint := flag.String("trace-endpoint", os.Getenv("PROMTACT_TRACE_ENDPOINT"), "OTLP/HTTP base URL for trace export, e.g. http://collector:4318 (empty disables tracing)")
+	traceServiceName := flag.String("trace-service-name", defaultString(os.Getenv("PROMTACT_TRACE_SERVICE_NAME"), "promtact"), "service.name reported on exported spans")
 	structuredLogs := flag.Bool("structured-logs", parseBoolEnv(os.Getenv("PROMTACT_STRUCTURED_LOGS")), "emit one JSON line per request with a correlation id, for log shipping")
 	identityCacheTTL := flag.Duration("identity-cache-ttl", 5*time.Minute, "how long a directory identity stays usable while the database is unreachable (0 disables the fallback)")
 	decisionJournalMax := flag.Int("decision-journal-max-entries", defaultIntEnv(os.Getenv("PROMTACT_DECISION_JOURNAL_MAX_ENTRIES"), 10000), "maximum records held in the decision journal before new ones are refused")
@@ -168,6 +170,8 @@ func main() {
 		DecisionJournalMaxEntries: *decisionJournalMax,
 		IdentityCacheTTL:          *identityCacheTTL,
 		StructuredLogs:            *structuredLogs,
+		TraceEndpoint:             strings.TrimSpace(*traceEndpoint),
+		TraceServiceName:          strings.TrimSpace(*traceServiceName),
 		CorrelationWindow:         window,
 		ThreatPackPath:            strings.TrimSpace(*threatPackPath),
 		DeceptionTokens:           deceptionTokens,
@@ -257,6 +261,7 @@ func main() {
 	reconcileCtx, stopReconciler := context.WithCancel(context.Background())
 	defer stopReconciler()
 	app.StartJournalReconciler(reconcileCtx, time.Minute)
+	app.StartTraceExporter(reconcileCtx, 5*time.Second)
 
 	reload := make(chan os.Signal, 1)
 	signal.Notify(reload, syscall.SIGHUP)

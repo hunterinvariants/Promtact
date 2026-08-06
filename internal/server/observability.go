@@ -88,6 +88,12 @@ func (a *App) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "# TYPE promtact_decision_journal_dropped_total counter")
 	fmt.Fprintf(w, "promtact_decision_journal_dropped_total %d\n", a.journal.Dropped())
 
+	if a.tracer.enabled() {
+		fmt.Fprintln(w, "# HELP promtact_trace_spans_dropped_total Spans discarded because the export queue was full.")
+		fmt.Fprintln(w, "# TYPE promtact_trace_spans_dropped_total counter")
+		fmt.Fprintf(w, "promtact_trace_spans_dropped_total %d\n", a.tracer.Dropped())
+	}
+
 	chain := a.store.AuditChain()
 	valid := 0
 	if chain.Valid {
