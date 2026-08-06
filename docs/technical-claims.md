@@ -66,6 +66,7 @@ Thresholds above are example release targets, not universal performance claims.
 
 ```powershell
 go test ./internal/server -run 'Test(Deny|Approval|Journal|Healthy)' -count=1
+go test ./internal/config -run 'Test.*(Signed|Signature|Tampered)' -count=1
 ```
 
 The acceptance test injects a real write failure rather than mocking one: the store is pointed at a path whose parent cannot be created, so every write fails the way it would during an outage.
@@ -75,6 +76,7 @@ Why this matters: answering a denial with `500` is not a neutral failure. A call
 Scope and limits, stated deliberately:
 
 - **Authentication continues for agents already seen.** A directory identity resolved before the outage stays usable for `--identity-cache-ttl` (default five minutes); an identity never seen is rejected, because failing closed is the only safe answer when the directory cannot be consulted. The cache is consulted *only* after a directory failure, so while the database is healthy every request is resolved against it and a revoked key stops working immediately. The added exposure is narrow: revocation writes to the same database, so nothing can be revoked during an outage anyway — the only widened window is a key revoked shortly before the outage began. Set the TTL to `0` to disable the fallback and fail closed immediately.
+- **The policy the server restarts with is verified.** With `PROMTACT_POLICY_HMAC_SECRET` set, `policy.json` carries a detached signature and a missing or altered document stops startup instead of taking effect. This matters most exactly here: a restart during an outage reads that file as the only source of approved tools, principals, roles, pinned fingerprints and agent identities.
 - **The journal is local.** It survives a process restart, but not the loss of the host it runs on.
 - **The journal refuses new records when full** rather than rotating, because discarding the oldest security records is the loss it exists to prevent. Decisions are still served and enforced; the refusal is counted in `promtact_decision_journal_dropped_total`.
 - **Pending approvals cannot be granted during an outage,** since the action is not in storage. That is the safe direction: the call keeps waiting.
@@ -83,4 +85,4 @@ Operational signals: `promtact_degraded_mode`, `promtact_decision_journal_depth`
 
 ## Claims intentionally not made
 
-Promtact does **not** claim: admission of agents never seen before while the directory is down (those fail closed by design); signed policy snapshots; cross-host durability of the decision journal; or attestation of a running tool's actual code, since provenance verifies a claim the client presents rather than measuring the binary.
+Promtact does **not** claim: admission of agents never seen before while the directory is down (those fail closed by design); cross-host durability of the decision journal; or attestation of a running tool's actual code, since provenance verifies a claim the client presents rather than measuring the binary.

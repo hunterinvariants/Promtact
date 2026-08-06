@@ -18,6 +18,7 @@ import (
 	"github.com/hunterinvariants/promtact/internal/agent"
 	"github.com/hunterinvariants/promtact/internal/auth"
 	"github.com/hunterinvariants/promtact/internal/collectors"
+	"github.com/hunterinvariants/promtact/internal/config"
 	"github.com/hunterinvariants/promtact/internal/domain"
 	"github.com/hunterinvariants/promtact/internal/license"
 	"github.com/hunterinvariants/promtact/internal/policy"
@@ -59,6 +60,10 @@ func main() {
 		}
 	case "wedge-demo":
 		if err := wedgeDemo(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+	case "sign-policy":
+		if err := signPolicyCommand(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
 	case "sign-manifest":
@@ -105,6 +110,25 @@ func tokenHash(args []string) error {
 		return errors.New("token-hash requires --token or PROMTACT_TOKEN")
 	}
 	fmt.Println(auth.HashToken(value))
+	return nil
+}
+
+// signPolicyCommand writes the detached signature for a policy document, so a
+// tampered policy is rejected at startup instead of silently taking effect.
+func signPolicyCommand(args []string) error {
+	fs := flag.NewFlagSet("sign-policy", flag.ContinueOnError)
+	filePath := fs.String("file", "", "policy JSON to sign")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*filePath) == "" {
+		return errors.New("sign-policy requires --file")
+	}
+	sigPath, err := config.SignPolicyFile(*filePath)
+	if err != nil {
+		return err
+	}
+	fmt.Println(sigPath)
 	return nil
 }
 
@@ -769,6 +793,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  promtactl mcp-demo [--url http://localhost:8080] [--token TOKEN] [--json]")
 	fmt.Fprintln(os.Stderr, "  promtactl bench [--url http://localhost:8080] [--token TOKEN] [--requests N] [--concurrency N]")
 	fmt.Fprintln(os.Stderr, "  promtactl sign-manifest --file threatpack.manifest.json")
+	fmt.Fprintln(os.Stderr, "  promtactl sign-policy --file policy.json")
 	fmt.Fprintln(os.Stderr, "  promtactl license keygen")
 	fmt.Fprintln(os.Stderr, "  promtactl license issue --private-key KEY --org ACME [--features sso,multi-tenant] [--valid-for 8760h]")
 	fmt.Fprintln(os.Stderr, "  promtactl license verify --public-key KEY --token TOKEN")
