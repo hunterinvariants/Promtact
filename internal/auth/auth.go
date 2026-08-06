@@ -331,6 +331,12 @@ func (a *Authenticator) ClearSessionCookie(w http.ResponseWriter) {
 }
 
 func RequiredRoles(method string, path string) []string {
+	// Platform provisioning is admin-only for every method. This must come first:
+	// the generic read rule below would otherwise expose customer and key
+	// metadata to any viewer on a GET.
+	if strings.HasPrefix(path, "/api/admin/") {
+		return []string{RoleAdmin}
+	}
 	if path == "/api/audit" {
 		return []string{RoleAnalyst, RoleOperator}
 	}
