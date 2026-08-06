@@ -182,6 +182,12 @@ func NewWithOptions(options Options) (*App, error) {
 		gatewayLimit = 64
 	}
 	authenticator := auth.New(options.Users, options.APIToken)
+	// With a Postgres backend, principals provisioned for customer tenants are
+	// resolved live from the database, so onboarding needs no restart. Without
+	// one, only the policy.json users apply and self-hosted setups are unchanged.
+	if st.HasDirectory() {
+		authenticator.SetDirectory(storeDirectory{store: st})
+	}
 	oidcProvider, err := newOIDCProvider(options.OIDCIssuerURL, options.OIDCClientID, options.OIDCClientSecret, options.OIDCRedirectURL, options.OIDCScopes, options.OIDCTenantClaim, options.OIDCRoleClaim, options.OIDCEmailClaim, authenticator.SessionKey())
 	if err != nil {
 		return nil, err
@@ -551,7 +557,7 @@ func (a *App) handleSession(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusTooManyRequests, errors.New("login temporarily rate limited"))
 			return
 		}
-		info, sessionID, ok := a.auth.Login(req.Username, req.Token)
+		info, sessionID, ok := a.auth.Login(r.Context(), req.Username, req.Token)
 		if !ok {
 			wait, err := a.recordLoginAttempt(loginKey, false)
 			if err != nil {

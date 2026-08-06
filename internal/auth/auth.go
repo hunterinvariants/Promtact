@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -44,8 +45,26 @@ type SessionInfo struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// Identity is a principal resolved from an external directory (the SaaS tenant
+// database). It mirrors the store's neutral record so the two packages stay
+// decoupled; the server adapts between them.
+type Identity struct {
+	Name   string
+	Tenant string
+	Roles  []string
+}
+
+// Directory resolves principals that are provisioned at runtime rather than
+// declared in policy.json. Attaching one makes customer provisioning take effect
+// without a server restart. Lookups must be safe for concurrent use.
+type Directory interface {
+	IdentityByTokenHash(ctx context.Context, tokenHash string) (Identity, bool)
+	IdentityByCredentials(ctx context.Context, username string, tokenHash string) (Identity, bool)
+}
+
 type Authenticator struct {
 	users      []UserConfig
+	directory  Directory
 	legacyHash string
 	sessionTTL time.Duration
 	sessionKey []byte
@@ -87,8 +106,14 @@ func HashToken(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// SetDirectory attaches a runtime principal directory. It is called during
+// startup, before the server serves traffic.
+func (a *Authenticator) SetDirectory(directory Directory) {
+	a.directory = directory
+}
+
 func (a *Authenticator) Enabled() bool {
-	return len(a.users) > 0 || a.legacyHash != ""
+	return len(a.users) > 0 || a.legacyHash != "" || a.directory != nil
 }
 
 func (a *Authenticator) HasUsers() bool {
@@ -156,15 +181,15 @@ func (a *Authenticator) Authenticate(r *http.Request) (Principal, bool) {
 		return Principal{}, false
 	}
 	tokenHash := HashToken(token)
-	principal, ok := a.principalForToken(tokenHash)
+	principal, ok := a.principalForToken(r.Context(), tokenHash)
 	if ok {
 		return principal, true
 	}
 	return Principal{}, false
 }
 
-func (a *Authenticator) Login(username string, token string) (SessionInfo, string, bool) {
-	principal, ok := a.principalForCredentials(username, token)
+func (a *Authenticator) Login(ctx context.Context, username string, token string) (SessionInfo, string, bool) {
+	principal, ok := a.principalForCredentials(ctx, username, token)
 	if !ok {
 		return SessionInfo{}, "", false
 	}
@@ -404,23 +429,43 @@ func normalizeRoles(roles []string) []string {
 	return normalized
 }
 
-func (a *Authenticator) principalForCredentials(username string, token string) (Principal, bool) {
+func (a *Authenticator) principalForCredentials(ctx context.Context, username string, token string) (Principal, bool) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return Principal{}, false
 	}
 	tokenHash := HashToken(token)
 	username = strings.TrimSpace(username)
-	if principal, ok := a.principalForToken(tokenHash); ok {
+	if principal, ok := a.principalForConfiguredToken(tokenHash); ok {
 		if username != "" && !strings.EqualFold(username, principal.Name) && principal.Name != "legacy-token" {
 			return Principal{}, false
 		}
 		return principal, true
 	}
+	if a.directory != nil {
+		if identity, ok := a.directory.IdentityByCredentials(ctx, username, tokenHash); ok {
+			return principalFromIdentity(identity), true
+		}
+	}
 	return Principal{}, false
 }
 
-func (a *Authenticator) principalForToken(tokenHash string) (Principal, bool) {
+// principalForToken resolves a bearer token. Configured users (policy.json) are
+// checked first so break-glass access keeps working even when the directory
+// database is unavailable; runtime-provisioned tenants are resolved after.
+func (a *Authenticator) principalForToken(ctx context.Context, tokenHash string) (Principal, bool) {
+	if principal, ok := a.principalForConfiguredToken(tokenHash); ok {
+		return principal, true
+	}
+	if a.directory != nil {
+		if identity, ok := a.directory.IdentityByTokenHash(ctx, tokenHash); ok {
+			return principalFromIdentity(identity), true
+		}
+	}
+	return Principal{}, false
+}
+
+func (a *Authenticator) principalForConfiguredToken(tokenHash string) (Principal, bool) {
 	for _, user := range a.users {
 		if constantTimeEqual(tokenHash, user.TokenHash) {
 			return Principal{Name: user.Name, Tenant: user.Tenant, Roles: user.Roles}, true
@@ -430,6 +475,21 @@ func (a *Authenticator) principalForToken(tokenHash string) (Principal, bool) {
 		return Principal{Name: "legacy-token", Tenant: "default", Roles: []string{RoleAdmin}}, true
 	}
 	return Principal{}, false
+}
+
+// principalFromIdentity converts a directory record into a principal. Roles pass
+// through the same allowlist as configured users, so a stray or tampered role
+// value in the database cannot grant privileges the system does not define.
+func principalFromIdentity(identity Identity) Principal {
+	roles := normalizeRoles(identity.Roles)
+	if len(roles) == 0 {
+		roles = []string{RoleViewer}
+	}
+	tenant := strings.TrimSpace(identity.Tenant)
+	if tenant == "" {
+		tenant = "default"
+	}
+	return Principal{Name: strings.TrimSpace(identity.Name), Tenant: tenant, Roles: roles}
 }
 
 func readToken(r *http.Request) string {

@@ -249,6 +249,46 @@ ALTER TABLE promtact_assets DROP CONSTRAINT IF EXISTS promtact_assets_pkey;
 ALTER TABLE promtact_assets ADD PRIMARY KEY (tenant, id);
 CREATE INDEX IF NOT EXISTS idx_promtact_assets_tenant ON promtact_assets (tenant);`,
 	},
+	{
+		Version: 5,
+		Name:    "tenant_accounts_users_api_keys",
+		SQL: `
+CREATE TABLE IF NOT EXISTS promtact_tenant_accounts (
+  tenant TEXT PRIMARY KEY,
+  display_name TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active',
+  plan TEXT NOT NULL DEFAULT 'standard',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS promtact_tenant_users (
+  id TEXT PRIMARY KEY,
+  tenant TEXT NOT NULL REFERENCES promtact_tenant_accounts (tenant) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  roles TEXT NOT NULL DEFAULT 'viewer',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Login resolves a principal by user name, so names must be globally unique:
+-- an ambiguous name across tenants would make authentication non-deterministic.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_promtact_tenant_users_name ON promtact_tenant_users (lower(name));
+CREATE INDEX IF NOT EXISTS idx_promtact_tenant_users_tenant ON promtact_tenant_users (tenant);
+
+-- Only the SHA-256 of an API key is stored; the plaintext is shown once at
+-- creation and is not recoverable afterwards.
+CREATE TABLE IF NOT EXISTS promtact_api_keys (
+  id TEXT PRIMARY KEY,
+  tenant TEXT NOT NULL REFERENCES promtact_tenant_accounts (tenant) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES promtact_tenant_users (id) ON DELETE CASCADE,
+  name TEXT NOT NULL DEFAULT '',
+  token_sha256 TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_promtact_api_keys_tenant ON promtact_api_keys (tenant);
+CREATE INDEX IF NOT EXISTS idx_promtact_api_keys_active ON promtact_api_keys (token_sha256) WHERE revoked_at IS NULL;`,
+	},
 }
 
 func (s *Store) postgresLoad(ctx context.Context) error {
