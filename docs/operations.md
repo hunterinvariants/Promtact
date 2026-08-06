@@ -437,6 +437,65 @@ sub-100µs (see `go test -bench BenchmarkGateToolCall ./internal/policy`); the
 end-to-end figure is dominated by the HTTP round-trip, so run it on the target
 host (loopback latency on some platforms inflates the number).
 
+## Publishing the console through Cloudflare Tunnel
+
+The server binds loopback only. A Cloudflare Tunnel publishes it without opening
+a single inbound port: `cloudflared` runs on the host and dials out to
+Cloudflare, so there is no listening socket to attack and no firewall rule to
+maintain.
+
+Install the connector as a native service rather than a container — a container
+would need `network_mode: host` to reach the host's loopback, and the bridged
+alternative would force the server to bind beyond `127.0.0.1`, giving up that
+hardening.
+
+```bash
+# 1) install the connector (Debian/Ubuntu package), then register the service.
+#    Prefix the command with a space so the tunnel token stays out of the shell
+#    history, and treat that token like a password.
+ sudo cloudflared service install <TUNNEL_TOKEN>
+systemctl is-active cloudflared
+journalctl -u cloudflared -n 20 --no-pager   # expect: Registered tunnel connection
+
+# 2) in the Cloudflare dashboard, route a public hostname to the local server:
+#    hostname app.example.com -> service http://127.0.0.1:8080, path empty.
+```
+
+Prefer the literal `http://127.0.0.1:8080` over `localhost:8080`: if `localhost`
+resolves to `::1` first on a given host, the connector dials IPv6 while the
+server listens on IPv4 and every request fails with a 502 that looks like a
+configuration error. Verify with `ss -lntp | grep 8080` and
+`getent ahosts localhost`.
+
+### Required settings behind the tunnel
+
+Both of these matter and neither is cosmetic:
+
+```bash
+# in /etc/promtact/promtact.env
+PROMTACT_TRUSTED_PROXIES=127.0.0.1,::1
+PROMTACT_PUBLIC_URL=https://app.example.com
+```
+
+Requests arrive from the connector on loopback, so without
+`PROMTACT_TRUSTED_PROXIES` the server treats `127.0.0.1` as the client for every
+request. Two things break as a result:
+
+- **Login lockout becomes global.** The brute-force backoff is keyed by source
+  IP, so one attacker's failed logins would lock out every customer — a
+  self-inflicted denial of service. With the proxy trusted, `X-Forwarded-For`
+  identifies the real client and the lockout applies per attacker.
+- **The session cookie loses its `Secure` flag,** because the server only honors
+  `X-Forwarded-Proto` from a trusted proxy and the local hop is plain HTTP.
+
+`PROMTACT_PUBLIC_URL` gives SSO callbacks and HA the externally reachable address.
+
+Verify from outside the host:
+
+```bash
+curl -sI https://app.example.com/     # expect HTTP/2 200 plus server: cloudflare
+```
+
 ## Load and HA verification
 
 The in-process behaviour under load is covered by tests run under the race
