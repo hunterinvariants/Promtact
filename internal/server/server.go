@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"github.com/hunterinvariants/promtact/internal/policy"
 	"github.com/hunterinvariants/promtact/internal/response"
 	"github.com/hunterinvariants/promtact/internal/store"
+	"github.com/hunterinvariants/promtact/web"
 )
 
 const Version = "0.4.0"
@@ -147,9 +149,8 @@ func New(webDir string) *App {
 }
 
 func NewWithOptions(options Options) (*App, error) {
-	if options.WebDir == "" {
-		options.WebDir = "web"
-	}
+	// An empty WebDir means "serve the console embedded in this binary"; a value
+	// is an explicit operator override pointing at assets on disk.
 	var st *store.Store
 	var err error
 	if options.PostgresDSN != "" {
@@ -2231,12 +2232,30 @@ func (a *App) lastExportError() string {
 }
 
 func (a *App) staticHandler() http.Handler {
-	root := http.Dir(filepath.Clean(a.webDir))
-	files := http.FileServer(root)
+	var fileSystem http.FileSystem
+	if strings.TrimSpace(a.webDir) != "" {
+		fileSystem = http.Dir(filepath.Clean(a.webDir))
+	} else if console, err := web.Console(); err == nil {
+		fileSystem = http.FS(console)
+	} else {
+		fileSystem = http.Dir(".")
+	}
+	files := http.FileServer(fileSystem)
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			http.NotFound(w, r)
 			return
+		}
+		// The console is a single-page app: unknown non-asset paths render the
+		// app shell rather than a 404, so a refresh on any view still works.
+		if path.Ext(r.URL.Path) == "" && r.URL.Path != "/" {
+			if file, err := fileSystem.Open(strings.TrimPrefix(r.URL.Path, "/")); err != nil {
+				r = r.Clone(r.Context())
+				r.URL.Path = "/"
+			} else {
+				_ = file.Close()
+			}
 		}
 		files.ServeHTTP(w, r)
 	})
