@@ -1,0 +1,241 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Promtact API",
+    "version": "v1",
+    "description": "Inline policy enforcement for AI-agent tool calls. Every endpoint is also reachable at its original unversioned path; those are deprecated and answer with a Deprecation header and a successor link.",
+    "license": { "name": "AGPL-3.0-or-later OR commercial" }
+  },
+  "servers": [{ "url": "/api/v1" }],
+  "security": [{ "bearerAuth": [] }],
+  "tags": [
+    { "name": "gateway", "description": "Inline enforcement of agent tool calls" },
+    { "name": "insight", "description": "Alerts, assets and posture" },
+    { "name": "platform", "description": "Tenant provisioning, restricted to the platform operator" }
+  ],
+  "paths": {
+    "/gateway/decide": {
+      "post": {
+        "tags": ["gateway"],
+        "summary": "Decide whether an agent tool call may proceed",
+        "description": "Evaluates the call and returns a verdict. This is the enforcement point: the caller must honour deny and require_approval. The decision is computed in process and does not depend on the database, so it is still returned during a storage outage.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ToolCallRequest" } } }
+        },
+        "responses": {
+          "202": { "description": "A decision was made", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ToolCallDecision" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "description": "Gateway saturated; retry with backoff" }
+        }
+      }
+    },
+    "/gateway/execute": {
+      "post": {
+        "tags": ["gateway"],
+        "summary": "Decide and, when allowed, execute through the configured tool backend",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ToolCallRequest" } } } },
+        "responses": {
+          "202": { "description": "Decision, plus the execution result when allowed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "Blocked by policy" }
+        }
+      }
+    },
+    "/mcp/proxy": {
+      "post": {
+        "tags": ["gateway"],
+        "summary": "MCP reverse proxy",
+        "description": "Accepts a JSON-RPC MCP request, gates it, and forwards it upstream when allowed. Tool provenance may be supplied in the request's _meta object as tool_fingerprint and tool_publisher.",
+        "responses": {
+          "200": { "description": "Forwarded; the upstream response is returned verbatim" },
+          "202": { "description": "Approval required; the pending action is described in the error data" },
+          "403": { "description": "Blocked by policy" },
+          "503": { "description": "No MCP upstream configured" }
+        }
+      }
+    },
+    "/gateway/validation": {
+      "get": {
+        "tags": ["insight"],
+        "summary": "Latest detection-validation result and trend",
+        "responses": {
+          "200": { "description": "The most recent validation run, with recent history when configured" },
+          "404": { "description": "No validation result recorded yet" }
+        }
+      }
+    },
+    "/status": {
+      "get": {
+        "tags": ["insight"],
+        "summary": "Deployment status and counts",
+        "responses": { "200": { "description": "Version, instance, tenant isolation and record counts" } }
+      }
+    },
+    "/alerts": {
+      "get": {
+        "tags": ["insight"],
+        "summary": "Alerts visible to the caller's tenant",
+        "responses": { "200": { "description": "Alerts", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Alert" } } } } } }
+      }
+    },
+    "/assets": {
+      "get": {
+        "tags": ["insight"],
+        "summary": "Assets visible to the caller's tenant",
+        "responses": { "200": { "description": "Assets" } }
+      }
+    },
+    "/audit": {
+      "get": {
+        "tags": ["insight"],
+        "summary": "Audit events",
+        "description": "Requires the analyst or operator role.",
+        "responses": { "200": { "description": "Hash-chained audit events" } }
+      }
+    },
+    "/session": {
+      "get": {
+        "tags": ["insight"],
+        "summary": "Current session",
+        "security": [],
+        "responses": { "200": { "description": "Whether the caller is authenticated, and as whom" } }
+      },
+      "post": {
+        "tags": ["insight"],
+        "summary": "Sign in with a user name and API key",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["username", "token"], "properties": { "username": { "type": "string" }, "token": { "type": "string", "format": "password" } } } } }
+        },
+        "responses": {
+          "200": { "description": "Session established" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "description": "Temporarily rate limited after repeated failures" }
+        }
+      },
+      "delete": { "tags": ["insight"], "summary": "Sign out and revoke the session", "responses": { "200": { "description": "Signed out" } } }
+    },
+    "/admin/tenants": {
+      "get": {
+        "tags": ["platform"],
+        "summary": "List customer tenants",
+        "responses": { "200": { "description": "Tenants" }, "403": { "$ref": "#/components/responses/Forbidden" }, "503": { "description": "Provisioning requires a Postgres backend" } }
+      },
+      "post": {
+        "tags": ["platform"],
+        "summary": "Provision a customer tenant with its first admin and API key",
+        "description": "The plaintext api_key is returned exactly once and cannot be recovered afterwards; only its SHA-256 is stored.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["tenant"], "properties": { "tenant": { "type": "string" }, "display_name": { "type": "string" }, "plan": { "type": "string" }, "admin_name": { "type": "string" } } } } }
+        },
+        "responses": { "201": { "description": "Tenant created; the key is shown once" }, "403": { "$ref": "#/components/responses/Forbidden" }, "409": { "description": "Tenant or user name already exists" } }
+      }
+    },
+    "/admin/tenants/{tenant}/status": {
+      "post": {
+        "tags": ["platform"],
+        "summary": "Suspend or reactivate a tenant",
+        "description": "A suspended tenant's principals stop authenticating on the next request.",
+        "parameters": [{ "$ref": "#/components/parameters/Tenant" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["status"], "properties": { "status": { "type": "string", "enum": ["active", "suspended"] } } } } } },
+        "responses": { "200": { "description": "Status changed" }, "403": { "$ref": "#/components/responses/Forbidden" } }
+      }
+    },
+    "/admin/tenants/{tenant}/users": {
+      "get": { "tags": ["platform"], "summary": "List a tenant's users", "parameters": [{ "$ref": "#/components/parameters/Tenant" }], "responses": { "200": { "description": "Users" } } },
+      "post": { "tags": ["platform"], "summary": "Add a user and issue its first key", "parameters": [{ "$ref": "#/components/parameters/Tenant" }], "responses": { "201": { "description": "User created; the key is shown once" } } }
+    },
+    "/admin/tenants/{tenant}/keys": {
+      "get": { "tags": ["platform"], "summary": "List a tenant's API keys", "parameters": [{ "$ref": "#/components/parameters/Tenant" }], "responses": { "200": { "description": "Keys, without any secret material" } } },
+      "post": { "tags": ["platform"], "summary": "Issue an API key for a user", "parameters": [{ "$ref": "#/components/parameters/Tenant" }], "responses": { "201": { "description": "Key issued; shown once" } } }
+    },
+    "/admin/tenants/{tenant}/keys/{keyId}": {
+      "delete": {
+        "tags": ["platform"],
+        "summary": "Revoke an API key",
+        "description": "Takes effect on the next request.",
+        "parameters": [{ "$ref": "#/components/parameters/Tenant" }, { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Revoked" }, "404": { "description": "Not found or already revoked" } }
+      }
+    },
+    "/admin/tenants/{tenant}/usage": {
+      "get": {
+        "tags": ["platform"],
+        "summary": "Metered usage for a billing period",
+        "parameters": [
+          { "$ref": "#/components/parameters/Tenant" },
+          { "name": "period", "in": "query", "schema": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$" }, "description": "Billing month as YYYY-MM; defaults to the current UTC month" }
+        ],
+        "responses": { "200": { "description": "Usage metrics for the period" }, "400": { "$ref": "#/components/responses/BadRequest" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "description": "An API key issued for a tenant user, or a principal declared in policy.json." }
+    },
+    "parameters": {
+      "Tenant": { "name": "tenant", "in": "path", "required": true, "schema": { "type": "string" } }
+    },
+    "responses": {
+      "BadRequest": { "description": "Malformed request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "Missing or invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Forbidden": { "description": "Authenticated but not permitted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "Error": { "type": "object", "properties": { "error": { "type": "string" } } },
+      "ToolCallRequest": {
+        "type": "object",
+        "required": ["tool_name"],
+        "properties": {
+          "id": { "type": "string" },
+          "asset_id": { "type": "string" },
+          "hostname": { "type": "string" },
+          "actor": { "type": "string", "description": "Free-text caller label. Not trusted for authorization; use agent_id when identities are enforced." },
+          "agent_id": { "type": "string", "description": "Registered agent identity." },
+          "agent_token": { "type": "string", "format": "password", "description": "The agent's identity token. A mismatch is denied as impersonation." },
+          "tool_name": { "type": "string" },
+          "tool_fingerprint": { "type": "string", "description": "Attested tool build. A mismatch against a pinned fingerprint is denied." },
+          "tool_publisher": { "type": "string" },
+          "command": { "type": "string" },
+          "arguments": { "type": "string" },
+          "destination": { "type": "string", "description": "Outbound target, evaluated against the approved egress list." },
+          "labels": { "type": "array", "items": { "type": "string" } },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Carries run_id, session_id or conversation_id to group a tool chain, which is how sequence-aware risk is attributed." }
+        }
+      },
+      "ToolCallDecision": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "request_id": { "type": "string" },
+          "tool_name": { "type": "string" },
+          "verdict": { "type": "string", "enum": ["allow", "require_approval", "deny"] },
+          "reason": { "type": "string", "description": "Why this verdict was reached." },
+          "risk": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "alerts": { "type": "array", "items": { "$ref": "#/components/schemas/Alert" } },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Includes risk_score, taint flows, matched signals and history context." }
+        }
+      },
+      "Alert": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "rule_id": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+          "status": { "type": "string", "enum": ["open", "resolved"] },
+          "asset_id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "evidence": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

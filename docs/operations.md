@@ -380,6 +380,31 @@ ENV
 systemctl daemon-reload && systemctl enable --now promtact-validate.timer
 ```
 
+### Verifying the alert path
+
+Fire a synthetic regression to prove the alert reaches a human, without touching
+the live gateway:
+
+```bash
+cat >/tmp/val-fail.json <<'JSON'
+{"total":1,"passed":0,"missed":1,"false_positives":0,
+ "results":[{"name":"canary-touch","technique":"T1530","tactic":"Collection",
+             "want":">=deny","got":"allow","pass":false}]}
+JSON
+set -a; . /etc/promtact/validate.env; set +a
+PROMTACT_VALIDATE_RESULT_FILE=/tmp/val-fail.json /usr/local/sbin/promtact-validate-alert
+rm -f /tmp/val-fail.json
+```
+
+Expect `-> HTTP 204`. A `401` means the sender's token and the receiver's differ;
+a `503` means the receiver has no shared secret configured. Run this after every
+change to the alert path — an alert channel that silently stopped working is
+indistinguishable from "nothing ever went wrong".
+
+Host the receiver off the monitored machine; see
+[deploy/cloudflare-worker](../deploy/cloudflare-worker). A receiver on the same
+host dies with the thing it watches.
+
 ### Coverage and trend in the dashboard
 
 Point the server at the result and history files and the dashboard shows a live
@@ -515,6 +540,30 @@ PROMTACT_STRUCTURED_LOGS=true
 Each line carries the correlation id, method, path, status, duration, principal,
 tenant and client IP. Query strings and headers are deliberately excluded — they
 carry tokens.
+
+## API versioning
+
+Every endpoint is reachable twice: at its original path and under `/api/v1`.
+Nothing was moved — the validation suite, the LangChain connector, the console
+and deployed agents all keep working — but new integrations can pin a version
+that will not shift under them.
+
+```bash
+curl -sH "Authorization: Bearer $TOKEN" https://app.example.com/api/v1/status
+curl -sH "Authorization: Bearer $TOKEN" https://app.example.com/api/v1/openapi.json
+```
+
+Versioned responses carry `X-API-Version: v1`. Unversioned API responses carry
+`Deprecation: true` and a `Link` header pointing at the successor path, so an
+integrator can find what to migrate to without reading a changelog. The original
+paths still work and are not scheduled for removal; the header is a signal, not a
+countdown.
+
+The OpenAPI document is embedded in the binary, so it describes the deployment
+being talked to rather than whatever was published elsewhere. It requires
+authentication like the rest of the API — the same document is in the public
+repository, so gating it protects nothing, but keeping the set of unauthenticated
+paths as small as possible does.
 
 ## Signing the policy file
 

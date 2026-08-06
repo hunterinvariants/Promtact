@@ -2,6 +2,10 @@ name = "promtact-alerts"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
+# Preview deployments would otherwise each get their own public URL. The endpoint
+# is token-protected either way, but there is no reason to expose more of it.
+preview_urls = false
+
 # Serve the receiver from your own domain, e.g. alerts.example.com.
 # Replace the zone and pattern, then `npx wrangler deploy`.
 # [[routes]]
