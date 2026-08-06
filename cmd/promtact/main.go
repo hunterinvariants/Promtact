@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -90,7 +92,13 @@ func main() {
 	decisionJournalMax := flag.Int("decision-journal-max-entries", defaultIntEnv(os.Getenv("PROMTACT_DECISION_JOURNAL_MAX_ENTRIES"), 10000), "maximum records held in the decision journal before new ones are refused")
 	insecure := flag.Bool("insecure", parseBoolEnv(os.Getenv("PROMTACT_INSECURE")), "allow open mode on non-loopback listen addresses")
 	withDemo := flag.Bool("demo", false, "load safe demo telemetry at startup")
+	showVersion := flag.Bool("version", false, "print version and build revision, then exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(versionString())
+		return
+	}
 
 	runtimeConfig, err := config.Load(*policyPath)
 	if err != nil {
@@ -362,4 +370,41 @@ func parseFlexibleDuration(value string) (time.Duration, error) {
 	}
 
 	return 0, errors.New("invalid duration")
+}
+
+// versionString reports the release plus the commit it was built from. An
+// operator must be able to prove which build is serving traffic; the revision
+// comes from the Go build info, so it is stamped by the toolchain and cannot
+// drift from the binary the way a hand-maintained constant can.
+func versionString() string {
+	revision, modified := buildRevision()
+	switch {
+	case revision == "":
+		return fmt.Sprintf("promtact %s", server.Version)
+	case modified:
+		return fmt.Sprintf("promtact %s (%s, dirty working tree)", server.Version, revision)
+	default:
+		return fmt.Sprintf("promtact %s (%s)", server.Version, revision)
+	}
+}
+
+func buildRevision() (string, bool) {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "", false
+	}
+	var revision string
+	var modified bool
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			modified = setting.Value == "true"
+		}
+	}
+	if len(revision) > 12 {
+		revision = revision[:12]
+	}
+	return revision, modified
 }
