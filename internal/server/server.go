@@ -321,6 +321,9 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/status", a.handleStatus)
 	mux.HandleFunc("/api/openapi.json", a.handleOpenAPI)
 	mux.HandleFunc("/api/session", a.handleSession)
+	mux.HandleFunc("/api/auth/mfa", a.handleMFAStatus)
+	mux.HandleFunc("/api/auth/mfa/enroll", a.handleMFAEnroll)
+	mux.HandleFunc("/api/auth/mfa/confirm", a.handleMFAConfirm)
 	mux.HandleFunc("/api/sso/oidc/login", a.handleOIDCLogin)
 	mux.HandleFunc("/api/sso/oidc/callback", a.handleOIDCCallback)
 	mux.HandleFunc("/api/sso/saml/login", a.handleSAMLLogin)
@@ -570,6 +573,7 @@ func (a *App) handleSession(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Username string `json:"username"`
 			Token    string `json:"token"`
+			MFACode  string `json:"mfa_code"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, err)
@@ -590,7 +594,43 @@ func (a *App) handleSession(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusTooManyRequests, errors.New("login temporarily rate limited"))
 			return
 		}
-		info, sessionID, ok := a.auth.Login(r.Context(), req.Username, req.Token)
+		// Credentials are verified without issuing anything, so a second factor
+		// can be interposed before a session exists.
+		principal, ok := a.auth.VerifyCredentials(r.Context(), req.Username, req.Token)
+		if ok {
+			outcome, mfaErr := a.checkSecondFactor(r.Context(), principal, req.MFACode)
+			if mfaErr != nil {
+				// Fail closed: an unreadable enrolment state must not become a
+				// way to sign in without a second factor.
+				a.recordAudit(r, principal, "auth.login", "session", "", "error", map[string]string{
+					"reason": "mfa_state_unavailable",
+				})
+				writeError(w, http.StatusServiceUnavailable, errors.New("multi-factor state is unavailable"))
+				return
+			}
+			if outcome != mfaSatisfied {
+				// A failed second factor counts against the same backoff as a
+				// wrong credential; otherwise the code is brute-forceable once
+				// the first factor is known.
+				if _, err := a.recordLoginAttempt(loginKey, false); err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					return
+				}
+				status, reason, responseErr := mfaLoginFailure(outcome)
+				a.recordAudit(r, principal, "auth.login", "session", "", "denied", map[string]string{
+					"username": strings.TrimSpace(req.Username),
+					"reason":   reason,
+				})
+				w.Header().Set("X-MFA-Required", "true")
+				writeError(w, status, responseErr)
+				return
+			}
+		}
+		var info auth.SessionInfo
+		var sessionID string
+		if ok {
+			info, sessionID, ok = a.auth.MintSession(principal)
+		}
 		if !ok {
 			wait, err := a.recordLoginAttempt(loginKey, false)
 			if err != nil {
