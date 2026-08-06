@@ -293,14 +293,18 @@ WHERE id = $1 AND tenant = $2 AND revoked_at IS NULL`,
 // IdentityByTokenHash resolves an API key hash to a principal. It requires an
 // unrevoked key, an active user, and an active tenant, so revocation and tenant
 // suspension take effect on the very next request.
-func (s *Store) IdentityByTokenHash(ctx context.Context, tokenHash string) (Identity, bool) {
+//
+// The returned error separates "this identity does not exist" (nil error, false)
+// from "the directory could not be reached" (non-nil error), because only the
+// latter may be answered from a cache.
+func (s *Store) IdentityByTokenHash(ctx context.Context, tokenHash string) (Identity, bool, error) {
 	db, err := s.directoryDB()
 	if err != nil {
-		return Identity{}, false
+		return Identity{}, false, err
 	}
 	tokenHash = strings.ToLower(strings.TrimSpace(tokenHash))
 	if tokenHash == "" {
-		return Identity{}, false
+		return Identity{}, false, nil
 	}
 
 	var keyID, name, tenant, roles string
@@ -313,8 +317,11 @@ WHERE k.token_sha256 = $1
   AND k.revoked_at IS NULL
   AND u.status = 'active'
   AND t.status = 'active'`, tokenHash).Scan(&keyID, &name, &tenant, &roles)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Identity{}, false, nil
+	}
 	if err != nil {
-		return Identity{}, false
+		return Identity{}, false, err
 	}
 
 	// Track usage at most once per 5 minutes so the auth path stays cheap.
@@ -322,20 +329,20 @@ WHERE k.token_sha256 = $1
 UPDATE promtact_api_keys SET last_used_at = now()
 WHERE id = $1 AND (last_used_at IS NULL OR last_used_at < now() - interval '5 minutes')`, keyID)
 
-	return Identity{Name: name, Tenant: tenant, Roles: decodeRoles(roles)}, true
+	return Identity{Name: name, Tenant: tenant, Roles: decodeRoles(roles)}, true, nil
 }
 
 // IdentityByCredentials resolves a user name plus API key hash, for the
 // dashboard login form. The key must belong to that same user.
-func (s *Store) IdentityByCredentials(ctx context.Context, username string, tokenHash string) (Identity, bool) {
+func (s *Store) IdentityByCredentials(ctx context.Context, username string, tokenHash string) (Identity, bool, error) {
 	db, err := s.directoryDB()
 	if err != nil {
-		return Identity{}, false
+		return Identity{}, false, err
 	}
 	username = strings.TrimSpace(username)
 	tokenHash = strings.ToLower(strings.TrimSpace(tokenHash))
 	if username == "" || tokenHash == "" {
-		return Identity{}, false
+		return Identity{}, false, nil
 	}
 
 	var name, tenant, roles string
@@ -349,10 +356,13 @@ WHERE k.token_sha256 = $1
   AND k.revoked_at IS NULL
   AND u.status = 'active'
   AND t.status = 'active'`, tokenHash, username).Scan(&name, &tenant, &roles)
-	if err != nil {
-		return Identity{}, false
+	if errors.Is(err, sql.ErrNoRows) {
+		return Identity{}, false, nil
 	}
-	return Identity{Name: name, Tenant: tenant, Roles: decodeRoles(roles)}, true
+	if err != nil {
+		return Identity{}, false, err
+	}
+	return Identity{Name: name, Tenant: tenant, Roles: decodeRoles(roles)}, true, nil
 }
 
 func encodeRoles(roles []string) string {

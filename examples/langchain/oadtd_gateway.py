@@ -45,6 +45,8 @@ class PromtactGateway:
         asset_id: str = "langchain-agent",
         agent_id: Optional[str] = None,
         agent_token: Optional[str] = None,
+        tool_fingerprints: Optional[dict] = None,
+        tool_publisher: Optional[str] = None,
         timeout: float = 15.0,
     ) -> None:
         self.url = url.rstrip("/")
@@ -53,9 +55,20 @@ class PromtactGateway:
         self.asset_id = asset_id
         self.agent_id = agent_id
         self.agent_token = agent_token
+        # Maps tool name -> the fingerprint this agent is entitled to invoke.
+        self.tool_fingerprints = dict(tool_fingerprints or {})
+        self.tool_publisher = tool_publisher
         self.timeout = timeout
 
-    def decide(self, tool_name: str, command: str = "", arguments: str = "", destination: str = "") -> Decision:
+    def decide(
+        self,
+        tool_name: str,
+        command: str = "",
+        arguments: str = "",
+        destination: str = "",
+        tool_fingerprint: Optional[str] = None,
+        tool_publisher: Optional[str] = None,
+    ) -> Decision:
         payload = {
             "asset_id": self.asset_id,
             "actor": self.actor,
@@ -68,6 +81,15 @@ class PromtactGateway:
         if self.agent_id:
             payload["agent_id"] = self.agent_id
             payload["agent_token"] = self.agent_token or ""
+        # Tool provenance: the same fingerprint the gateway pins for this tool.
+        # A mismatch is denied, so a swapped or tampered tool is caught even when
+        # its name is on the approved list.
+        fingerprint = tool_fingerprint or self.tool_fingerprints.get(tool_name)
+        if fingerprint:
+            payload["tool_fingerprint"] = fingerprint
+        publisher = tool_publisher or self.tool_publisher
+        if publisher:
+            payload["tool_publisher"] = publisher
 
         request = urllib.request.Request(
             self.url + "/api/gateway/decide",
@@ -93,13 +115,22 @@ class PromtactGateway:
         arguments: str = "",
         destination: str = "",
         allow_on_approval: bool = False,
+        tool_fingerprint: Optional[str] = None,
+        tool_publisher: Optional[str] = None,
     ) -> Decision:
         """Return the decision if the call may proceed, else raise ToolBlocked.
 
         ``allow_on_approval`` lets require_approval calls through (useful when a
         human-in-the-loop reviews them elsewhere); by default they are blocked.
         """
-        decision = self.decide(tool_name, command=command, arguments=arguments, destination=destination)
+        decision = self.decide(
+            tool_name,
+            command=command,
+            arguments=arguments,
+            destination=destination,
+            tool_fingerprint=tool_fingerprint,
+            tool_publisher=tool_publisher,
+        )
         if decision.verdict == ALLOW:
             return decision
         if decision.verdict == REQUIRE_APPROVAL and allow_on_approval:

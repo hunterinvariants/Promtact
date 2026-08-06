@@ -8,9 +8,14 @@ Public claims are valid only when their acceptance command passes for the exact 
 
 ```powershell
 go test ./internal/policy -run 'Test.*(Identity|Provenance)' -count=1
+go test ./internal/server -run 'Test.*Provenance' -count=1
+go test ./internal/server -run 'TestIdentityCache|TestUnknownIdentity' -count=1
+cd examples/langchain; python -m unittest test_promtact_gateway
 ```
 
-Scope: HTTP and MCP calls normalized into `ToolCallRequest`; not yet proof of interoperability across several agent frameworks.
+Provenance is enforced identically on every surface an agent can reach: the direct tool-call API, the MCP reverse proxy (where the claim travels in the request's `_meta`), and the LangChain connector. That matters because a single unattested surface would be the way around a pinned fingerprint.
+
+Scope: attestation is a claim the client presents, so it binds a tool build to a caller that possesses the fingerprint; it is not a measurement of the running tool's code.
 
 ## 2. Source-to-sink flows survive covered obfuscation and chain context
 
@@ -69,13 +74,13 @@ Why this matters: answering a denial with `500` is not a neutral failure. A call
 
 Scope and limits, stated deliberately:
 
-- **Authentication still depends on storage for runtime-provisioned tenants.** Principals declared in `policy.json` keep authenticating during an outage; identities provisioned into the tenant directory are resolved from the database and cannot be verified while it is down. Full continuity for those needs a bounded-TTL identity cache, which trades revocation latency for availability and is not implemented.
+- **Authentication continues for agents already seen.** A directory identity resolved before the outage stays usable for `--identity-cache-ttl` (default five minutes); an identity never seen is rejected, because failing closed is the only safe answer when the directory cannot be consulted. The cache is consulted *only* after a directory failure, so while the database is healthy every request is resolved against it and a revoked key stops working immediately. The added exposure is narrow: revocation writes to the same database, so nothing can be revoked during an outage anyway — the only widened window is a key revoked shortly before the outage began. Set the TTL to `0` to disable the fallback and fail closed immediately.
 - **The journal is local.** It survives a process restart, but not the loss of the host it runs on.
 - **The journal refuses new records when full** rather than rotating, because discarding the oldest security records is the loss it exists to prevent. Decisions are still served and enforced; the refusal is counted in `promtact_decision_journal_dropped_total`.
 - **Pending approvals cannot be granted during an outage,** since the action is not in storage. That is the safe direction: the call keeps waiting.
 
 Operational signals: `promtact_degraded_mode`, `promtact_decision_journal_depth`, `promtact_decision_journal_dropped_total`.
 
-## Claim intentionally not made
+## Claims intentionally not made
 
-Promtact does **not** claim uninterrupted enforcement for runtime-provisioned tenant identities during a full database outage, for the reason given under claim 6. It also does not claim signed policy snapshots or cross-host durability of the journal.
+Promtact does **not** claim: admission of agents never seen before while the directory is down (those fail closed by design); signed policy snapshots; cross-host durability of the decision journal; or attestation of a running tool's actual code, since provenance verifies a claim the client presents rather than measuring the binary.

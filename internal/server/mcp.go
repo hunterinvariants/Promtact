@@ -427,12 +427,40 @@ func (a *App) toolCallFromMCPRequest(rpc mcpJSONRPCRequest) domain.ToolCallReque
 	if toolCall.Arguments == "" {
 		toolCall.Arguments = canonicalJSON(params)
 	}
+	// Tool provenance travels in the MCP request's _meta object, which the
+	// protocol reserves for exactly this kind of out-of-band annotation, so a
+	// client can attest which tool build it is invoking without the claim being
+	// mistaken for a tool argument. Top-level keys are accepted as a fallback for
+	// clients that cannot populate _meta.
+	fingerprint, publisher := mcpProvenance(params)
+	toolCall.ToolFingerprint = fingerprint
+	toolCall.ToolPublisher = publisher
+
 	for key, value := range params {
 		if valueString, ok := stringFromAny(value); ok {
 			toolCall.Metadata["mcp_"+key] = valueString
 		}
 	}
 	return toolCall
+}
+
+// mcpProvenance extracts a tool fingerprint and publisher from an MCP request.
+func mcpProvenance(params map[string]any) (string, string) {
+	read := func(source map[string]any) (string, string) {
+		if source == nil {
+			return "", ""
+		}
+		fingerprint, _ := stringFromAny(source["tool_fingerprint"])
+		publisher, _ := stringFromAny(source["tool_publisher"])
+		return strings.TrimSpace(fingerprint), strings.TrimSpace(publisher)
+	}
+
+	if meta, ok := params["_meta"].(map[string]any); ok {
+		if fingerprint, publisher := read(meta); fingerprint != "" || publisher != "" {
+			return fingerprint, publisher
+		}
+	}
+	return read(params)
 }
 
 func shouldInterceptMCPMethod(method string) bool {

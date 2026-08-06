@@ -32,10 +32,10 @@ func TestDirectoryDegradesWithoutPostgres(t *testing.T) {
 	if s.HasDirectory() {
 		t.Fatal("an in-memory store must not report a tenant directory")
 	}
-	if _, ok := s.IdentityByTokenHash(ctx, "somehash"); ok {
+	if _, ok, _ := s.IdentityByTokenHash(ctx, "somehash"); ok {
 		t.Fatal("token lookup must not succeed without a directory")
 	}
-	if _, ok := s.IdentityByCredentials(ctx, "alice", "somehash"); ok {
+	if _, ok, _ := s.IdentityByCredentials(ctx, "alice", "somehash"); ok {
 		t.Fatal("credential lookup must not succeed without a directory")
 	}
 	if _, err := s.CreateTenantAccount(ctx, TenantAccount{Tenant: "acme"}); err == nil {

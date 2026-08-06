@@ -75,7 +75,7 @@ func TestTenantDirectoryIntegration(t *testing.T) {
 		t.Fatalf("create api key: %v", err)
 	}
 
-	identity, ok := s.IdentityByTokenHash(ctx, tokenHash)
+	identity, ok, _ := s.IdentityByTokenHash(ctx, tokenHash)
 	if !ok {
 		t.Fatal("a valid key should resolve an identity")
 	}
@@ -86,10 +86,10 @@ func TestTenantDirectoryIntegration(t *testing.T) {
 		t.Fatalf("roles mismatch: %v", identity.Roles)
 	}
 
-	if _, ok := s.IdentityByCredentials(ctx, userName, tokenHash); !ok {
+	if _, ok, _ := s.IdentityByCredentials(ctx, userName, tokenHash); !ok {
 		t.Fatal("credential login should succeed for the owning user")
 	}
-	if _, ok := s.IdentityByCredentials(ctx, "someone-else", tokenHash); ok {
+	if _, ok, _ := s.IdentityByCredentials(ctx, "someone-else", tokenHash); ok {
 		t.Fatal("a key must not authenticate a different user name")
 	}
 
@@ -97,13 +97,13 @@ func TestTenantDirectoryIntegration(t *testing.T) {
 	if err := s.SetTenantAccountStatus(ctx, tenantA, StatusSuspended); err != nil {
 		t.Fatalf("suspend tenant: %v", err)
 	}
-	if _, ok := s.IdentityByTokenHash(ctx, tokenHash); ok {
+	if _, ok, _ := s.IdentityByTokenHash(ctx, tokenHash); ok {
 		t.Fatal("a suspended tenant must not authenticate")
 	}
 	if err := s.SetTenantAccountStatus(ctx, tenantA, StatusActive); err != nil {
 		t.Fatalf("reactivate tenant: %v", err)
 	}
-	if _, ok := s.IdentityByTokenHash(ctx, tokenHash); !ok {
+	if _, ok, _ := s.IdentityByTokenHash(ctx, tokenHash); !ok {
 		t.Fatal("reactivating the tenant should restore authentication")
 	}
 
@@ -111,7 +111,7 @@ func TestTenantDirectoryIntegration(t *testing.T) {
 	if err := s.RevokeAPIKey(ctx, tenantA, key.ID); err != nil {
 		t.Fatalf("revoke key: %v", err)
 	}
-	if _, ok := s.IdentityByTokenHash(ctx, tokenHash); ok {
+	if _, ok, _ := s.IdentityByTokenHash(ctx, tokenHash); ok {
 		t.Fatal("a revoked key must not authenticate")
 	}
 	if err := s.RevokeAPIKey(ctx, tenantA, key.ID); err == nil {
