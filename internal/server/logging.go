@@ -163,8 +163,8 @@ func (a *App) withRequestLogging(next http.Handler) http.Handler {
 					"http.request.method":       r.Method,
 					"url.path":                  sanitizeLogValue(r.URL.Path),
 					"http.response.status_code": fmt.Sprintf("%d", recorder.status),
-					"promtact.correlation_id":      id,
-					"promtact.tenant":              sanitizeLogValue(info.tenant),
+					"promtact.correlation_id":   id,
+					"promtact.tenant":           sanitizeLogValue(info.tenant),
 				},
 			})
 		}
