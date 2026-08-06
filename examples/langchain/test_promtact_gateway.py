@@ -19,10 +19,18 @@ class _StubHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length) or b"{}")
+        _StubHandler.last_request = body
         command = (body.get("command") or "") + " " + (body.get("arguments") or "")
         tool = body.get("tool_name", "")
+        fingerprint = body.get("tool_fingerprint")
         if tool == "unlisted_tool":
             verdict, reason = "deny", "tool not approved"
+        elif tool == "pinned_tool" and fingerprint != "sha256:good":
+            # Mirrors the gateway: a mismatch is denied, a missing claim is gated.
+            if fingerprint:
+                verdict, reason = "deny", "provenance mismatch"
+            else:
+                verdict, reason = "require_approval", "provenance missing"
         elif "api_key" in command or "secret" in command:
             verdict, reason = "require_approval", "secret referenced"
         else:
@@ -64,6 +72,29 @@ class GatewayClientTest(unittest.TestCase):
     def test_approval_allowed_when_opted_in(self):
         decision = self.gateway.enforce("asset_inventory", command="read the api_key", allow_on_approval=True)
         self.assertEqual(decision.verdict, "require_approval")
+
+    def test_provenance_is_sent_and_enforced(self):
+        """The connector attests which tool build it invokes, so a swapped tool
+        is caught even though its name is approved."""
+        pinned = PromtactGateway(
+            url=self.gateway.url,
+            tool_fingerprints={"pinned_tool": "sha256:good"},
+            tool_publisher="acme",
+        )
+        decision = pinned.enforce("pinned_tool", command="search")
+        self.assertEqual(decision.verdict, ALLOW)
+        self.assertEqual(_StubHandler.last_request.get("tool_fingerprint"), "sha256:good")
+        self.assertEqual(_StubHandler.last_request.get("tool_publisher"), "acme")
+
+    def test_tampered_tool_is_denied(self):
+        swapped = PromtactGateway(url=self.gateway.url, tool_fingerprints={"pinned_tool": "sha256:TAMPERED"})
+        with self.assertRaises(ToolBlocked):
+            swapped.enforce("pinned_tool", command="search")
+
+    def test_missing_provenance_is_gated(self):
+        unattested = PromtactGateway(url=self.gateway.url)
+        with self.assertRaises(ToolBlocked):
+            unattested.enforce("pinned_tool", command="search")
 
 
 if __name__ == "__main__":

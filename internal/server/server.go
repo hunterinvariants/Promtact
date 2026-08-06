@@ -96,6 +96,7 @@ type Options struct {
 	ValidationHistoryPath     string
 	DecisionJournalPath       string
 	DecisionJournalMaxEntries int
+	IdentityCacheTTL          time.Duration
 	DeceptionTokens           []domain.DeceptionToken
 	TenantPolicies            []policy.TenantPolicy
 	LicenseToken              string
@@ -196,7 +197,14 @@ func NewWithOptions(options Options) (*App, error) {
 	// resolved live from the database, so onboarding needs no restart. Without
 	// one, only the policy.json users apply and self-hosted setups are unchanged.
 	if st.HasDirectory() {
-		authenticator.SetDirectory(storeDirectory{store: st})
+		identityCacheTTL := options.IdentityCacheTTL
+		if identityCacheTTL == 0 {
+			identityCacheTTL = 5 * time.Minute
+		}
+		if identityCacheTTL < 0 {
+			identityCacheTTL = 0
+		}
+		authenticator.SetDirectory(newStoreDirectory(st, identityCacheTTL))
 	}
 	oidcProvider, err := newOIDCProvider(options.OIDCIssuerURL, options.OIDCClientID, options.OIDCClientSecret, options.OIDCRedirectURL, options.OIDCScopes, options.OIDCTenantClaim, options.OIDCRoleClaim, options.OIDCEmailClaim, authenticator.SessionKey())
 	if err != nil {
