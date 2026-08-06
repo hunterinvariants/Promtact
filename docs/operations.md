@@ -496,6 +496,33 @@ Verify from outside the host:
 curl -sI https://app.example.com/     # expect HTTP/2 200 plus server: cloudflare
 ```
 
+## Surviving a storage outage
+
+The gateway computes its verdict in process, so a database outage does not change
+what it decides — only whether the record can be stored. Configure a local
+journal so a storage incident cannot discard an enforcement decision:
+
+```bash
+# in /etc/promtact/promtact.env
+PROMTACT_DECISION_JOURNAL_PATH=/var/lib/promtact/decision-journal.jsonl
+PROMTACT_DECISION_JOURNAL_MAX_ENTRIES=10000
+```
+
+While storage is unavailable the server keeps serving verdicts, appends the
+alerts and actions it could not persist to that journal (fsynced per record), and
+replays them into storage on recovery — automatically on the next successful
+write and, if the deployment is idle, once a minute.
+
+Watch `promtact_degraded_mode`, `promtact_decision_journal_depth` and
+`promtact_decision_journal_dropped_total`. A non-zero dropped counter means the
+journal hit its cap and refused records; decisions were still enforced, but that
+part of the audit trail is gone, so alert on it.
+
+Two limits worth knowing before you rely on this: principals provisioned into
+the tenant directory are verified against the database, so during a full outage
+only principals declared in `policy.json` can still authenticate; and the journal
+lives on the host, so it survives a restart but not the loss of that machine.
+
 ## Load and HA verification
 
 The in-process behaviour under load is covered by tests run under the race

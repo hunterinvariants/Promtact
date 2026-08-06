@@ -92,11 +92,7 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 		decision := a.policy.GateToolCall(toolCall)
 		a.recordToolDecision(r, decision.Verdict)
 		a.prepareAlerts(decision.Alerts, tenant)
-		added, err := a.addAlertsForTenant(decision.Alerts, tenant)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		added := a.persistAlerts(tenant, decision.Alerts)
 		decision.Alerts = added
 		decision.RecommendedActions = a.recommendedActionsForAlerts(added)
 
@@ -113,10 +109,7 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 			action.Metadata["mcp_upstream_url"] = a.gatewayMCPUpstream()
 			action.Metadata["mcp_raw_request"] = base64.RawURLEncoding.EncodeToString(raw)
 			a.prepareAction(&action, tenant)
-			if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
+			a.persistActions(tenant, []domain.ResponseAction{action})
 			a.recordAudit(r, principal, "mcp.proxy", "tool_call", decision.RequestID, "executed", map[string]string{
 				"method":      rpc.Method,
 				"tool":        decision.ToolName,
@@ -135,10 +128,7 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 			action.Metadata["mcp_upstream_url"] = a.gatewayMCPUpstream()
 			action.Metadata["mcp_raw_request"] = base64.RawURLEncoding.EncodeToString(raw)
 			a.prepareAction(&action, tenant)
-			if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
+			a.persistActions(tenant, []domain.ResponseAction{action})
 			decision.Action = &action
 			a.recordAudit(r, principal, "mcp.proxy", "tool_call", decision.RequestID, "pending_approval", map[string]string{
 				"method":      rpc.Method,
@@ -168,10 +158,7 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 			action.Metadata["mcp_upstream_url"] = a.gatewayMCPUpstream()
 			action.Metadata["mcp_raw_request"] = base64.RawURLEncoding.EncodeToString(raw)
 			a.prepareAction(&action, tenant)
-			if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
+			a.persistActions(tenant, []domain.ResponseAction{action})
 			decision.Action = &action
 			a.recordAudit(r, principal, "mcp.proxy", "tool_call", decision.RequestID, "blocked", map[string]string{
 				"method":      rpc.Method,

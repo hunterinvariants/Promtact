@@ -57,6 +57,10 @@ type App struct {
 	gatewayAllowed         uint64
 	gatewayDenied          uint64
 	gatewayQueued          uint64
+	journal                *decisionJournal
+	degradedMu             sync.Mutex
+	degradedSince          time.Time
+	degradedReason         string
 	webhook                exporter.Webhook
 	ticketWebhook          exporter.Webhook
 	responseWebhook        exporter.Webhook
@@ -90,6 +94,8 @@ type Options struct {
 	PolicyPath                string
 	ValidationResultPath      string
 	ValidationHistoryPath     string
+	DecisionJournalPath       string
+	DecisionJournalMaxEntries int
 	DeceptionTokens           []domain.DeceptionToken
 	TenantPolicies            []policy.TenantPolicy
 	LicenseToken              string
@@ -241,6 +247,7 @@ func NewWithOptions(options Options) (*App, error) {
 		policyPath:            strings.TrimSpace(options.PolicyPath),
 		validationResultPath:  strings.TrimSpace(options.ValidationResultPath),
 		validationHistoryPath: strings.TrimSpace(options.ValidationHistoryPath),
+		journal:               newDecisionJournal(options.DecisionJournalPath, options.DecisionJournalMaxEntries),
 		threatPackPath:        strings.TrimSpace(options.ThreatPackPath),
 		auth:                  authenticator,
 		trustedProxies:        trustedProxies,
@@ -816,11 +823,7 @@ func (a *App) handleGatewayDecision(w http.ResponseWriter, r *http.Request) {
 	decision := a.policy.GateToolCall(req)
 	a.recordToolDecision(r, decision.Verdict)
 	a.prepareAlerts(decision.Alerts, tenant)
-	added, err := a.addAlertsForTenant(decision.Alerts, tenant)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
+	added := a.persistAlerts(tenant, decision.Alerts)
 	if len(added) > 0 {
 		a.exportAlerts(added)
 	}
@@ -830,18 +833,12 @@ func (a *App) handleGatewayDecision(w http.ResponseWriter, r *http.Request) {
 	case domain.GatewayRequireApproval:
 		action := a.gatewayActionFromDecision(req, decision, tenant, "required", "")
 		a.prepareAction(&action, tenant)
-		if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		a.persistActions(tenant, []domain.ResponseAction{action})
 		decision.Action = &action
 	case domain.GatewayDeny:
 		action := a.gatewayActionFromDecision(req, decision, tenant, "not_required", "blocked")
 		a.prepareAction(&action, tenant)
-		if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		a.persistActions(tenant, []domain.ResponseAction{action})
 		decision.Action = &action
 	}
 	a.recordAudit(r, principal, "gateway.decide", "tool_call", decision.RequestID, string(decision.Verdict), map[string]string{
@@ -882,11 +879,7 @@ func (a *App) handleGatewayExecute(w http.ResponseWriter, r *http.Request) {
 	decision := a.policy.GateToolCall(req)
 	a.recordToolDecision(r, decision.Verdict)
 	a.prepareAlerts(decision.Alerts, tenant)
-	added, err := a.addAlertsForTenant(decision.Alerts, tenant)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
+	added := a.persistAlerts(tenant, decision.Alerts)
 	if len(added) > 0 {
 		a.exportAlerts(added)
 	}
@@ -923,10 +916,7 @@ func (a *App) handleGatewayExecute(w http.ResponseWriter, r *http.Request) {
 	case domain.GatewayRequireApproval:
 		action := a.gatewayActionFromDecision(req, decision, tenant, "required", "")
 		a.prepareAction(&action, tenant)
-		if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		a.persistActions(tenant, []domain.ResponseAction{action})
 		response.Status = "pending_approval"
 		response.Action = &action
 		a.recordAudit(r, principal, "gateway.execute", "tool_call", decision.RequestID, "pending_approval", map[string]string{
@@ -943,10 +933,7 @@ func (a *App) handleGatewayExecute(w http.ResponseWriter, r *http.Request) {
 	case domain.GatewayDeny:
 		action := a.gatewayActionFromDecision(req, decision, tenant, "not_required", "blocked")
 		a.prepareAction(&action, tenant)
-		if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		a.persistActions(tenant, []domain.ResponseAction{action})
 		response.Status = "blocked"
 		response.Action = &action
 		a.recordAudit(r, principal, "gateway.execute", "tool_call", decision.RequestID, "blocked", map[string]string{
@@ -1011,11 +998,7 @@ func (a *App) handleGatewayProxy(w http.ResponseWriter, r *http.Request) {
 	decision := a.policy.GateToolCall(req.ToolCall)
 	a.recordToolDecision(r, decision.Verdict)
 	a.prepareAlerts(decision.Alerts, tenant)
-	added, err := a.addAlertsForTenant(decision.Alerts, tenant)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
+	added := a.persistAlerts(tenant, decision.Alerts)
 	decision.Alerts = added
 	decision.RecommendedActions = a.recommendedActionsForAlerts(added)
 
@@ -1065,10 +1048,7 @@ func (a *App) handleGatewayProxy(w http.ResponseWriter, r *http.Request) {
 		action.Metadata["proxy_upstream_status"] = fmt.Sprintf("%d", upstreamResp.StatusCode)
 		action.Metadata["proxy_content_type"] = upstreamResp.Header.Get("Content-Type")
 		a.prepareAction(&action, tenant)
-		if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		a.persistActions(tenant, []domain.ResponseAction{action})
 		a.recordAudit(r, principal, "gateway.proxy", "tool_call", decision.RequestID, "executed", map[string]string{
 			"tool":        decision.ToolName,
 			"asset_id":    req.ToolCall.AssetID,
@@ -1090,10 +1070,7 @@ func (a *App) handleGatewayProxy(w http.ResponseWriter, r *http.Request) {
 		action.Type = "gateway_proxy"
 		action.Metadata["proxy_upstream_url"] = req.UpstreamURL
 		a.prepareAction(&action, tenant)
-		if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		a.persistActions(tenant, []domain.ResponseAction{action})
 		decision.Action = &action
 		a.recordAudit(r, principal, "gateway.proxy", "tool_call", decision.RequestID, "pending_approval", map[string]string{
 			"tool":        decision.ToolName,
@@ -1113,10 +1090,7 @@ func (a *App) handleGatewayProxy(w http.ResponseWriter, r *http.Request) {
 		action.Type = "gateway_proxy"
 		action.Metadata["proxy_upstream_url"] = req.UpstreamURL
 		a.prepareAction(&action, tenant)
-		if err := a.addActionsForTenant([]domain.ResponseAction{action}, tenant); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+		a.persistActions(tenant, []domain.ResponseAction{action})
 		decision.Action = &action
 		a.recordAudit(r, principal, "gateway.proxy", "tool_call", decision.RequestID, "blocked", map[string]string{
 			"tool":        decision.ToolName,

@@ -55,6 +55,27 @@ go run ./cmd/promtactl bench --url http://localhost:8080 --requests 10000 --conc
 
 Thresholds above are example release targets, not universal performance claims.
 
+## 6. Enforcement survives a storage outage without losing decisions
+
+**Claim.** When durable storage is unavailable, the gateway keeps deciding and keeps enforcing: a deny stays a deny and an approval requirement stays an approval requirement, served to the caller rather than replaced by a server error. Records that cannot be persisted are written to a local fsynced journal and replayed into storage on recovery, so the audit trail is delayed but not lost. On healthy storage nothing is journalled and behavior is unchanged.
+
+```powershell
+go test ./internal/server -run 'Test(Deny|Approval|Journal|Healthy)' -count=1
+```
+
+The acceptance test injects a real write failure rather than mocking one: the store is pointed at a path whose parent cannot be created, so every write fails the way it would during an outage.
+
+Why this matters: answering a denial with `500` is not a neutral failure. A caller that treats an error as "gateway unavailable" would proceed with exactly the call that was just blocked, turning a storage incident into a security bypass.
+
+Scope and limits, stated deliberately:
+
+- **Authentication still depends on storage for runtime-provisioned tenants.** Principals declared in `policy.json` keep authenticating during an outage; identities provisioned into the tenant directory are resolved from the database and cannot be verified while it is down. Full continuity for those needs a bounded-TTL identity cache, which trades revocation latency for availability and is not implemented.
+- **The journal is local.** It survives a process restart, but not the loss of the host it runs on.
+- **The journal refuses new records when full** rather than rotating, because discarding the oldest security records is the loss it exists to prevent. Decisions are still served and enforced; the refusal is counted in `promtact_decision_journal_dropped_total`.
+- **Pending approvals cannot be granted during an outage,** since the action is not in storage. That is the safe direction: the call keeps waiting.
+
+Operational signals: `promtact_degraded_mode`, `promtact_decision_journal_depth`, `promtact_decision_journal_dropped_total`.
+
 ## Claim intentionally not made
 
-Promtact does **not** currently claim uninterrupted enforcement during control-plane or primary-database failure. Although policy evaluation is local, synchronous persistence can still fail a gateway request. This needs signed local policy snapshots, an asynchronous durable decision journal, replay protection, explicit degraded-mode rules, and failure-injection tests.
+Promtact does **not** claim uninterrupted enforcement for runtime-provisioned tenant identities during a full database outage, for the reason given under claim 6. It also does not claim signed policy snapshots or cross-host durability of the journal.

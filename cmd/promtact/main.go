@@ -82,6 +82,8 @@ func main() {
 	gatewayMaxInFlight := flag.Int("gateway-max-in-flight", defaultIntEnv(os.Getenv("PROMTACT_GATEWAY_MAX_IN_FLIGHT"), 64), "max in-flight gateway operations before backpressure")
 	validationResultPath := flag.String("validation-result-path", os.Getenv("PROMTACT_VALIDATION_RESULT_PATH"), "path to the detection-validation result JSON served at /api/gateway/validation")
 	validationHistoryPath := flag.String("validation-history-path", os.Getenv("PROMTACT_VALIDATION_HISTORY_PATH"), "path to the detection-validation history JSONL for the dashboard trend")
+	decisionJournalPath := flag.String("decision-journal-path", os.Getenv("PROMTACT_DECISION_JOURNAL_PATH"), "local journal for gateway records that could not be persisted, so enforcement survives a storage outage")
+	decisionJournalMax := flag.Int("decision-journal-max-entries", defaultIntEnv(os.Getenv("PROMTACT_DECISION_JOURNAL_MAX_ENTRIES"), 10000), "maximum records held in the decision journal before new ones are refused")
 	insecure := flag.Bool("insecure", parseBoolEnv(os.Getenv("PROMTACT_INSECURE")), "allow open mode on non-loopback listen addresses")
 	withDemo := flag.Bool("demo", false, "load safe demo telemetry at startup")
 	flag.Parse()
@@ -160,6 +162,8 @@ func main() {
 		PolicyPath:                strings.TrimSpace(*policyPath),
 		ValidationResultPath:      strings.TrimSpace(*validationResultPath),
 		ValidationHistoryPath:     strings.TrimSpace(*validationHistoryPath),
+		DecisionJournalPath:       strings.TrimSpace(*decisionJournalPath),
+		DecisionJournalMaxEntries: *decisionJournalMax,
 		CorrelationWindow:         window,
 		ThreatPackPath:            strings.TrimSpace(*threatPackPath),
 		DeceptionTokens:           deceptionTokens,
@@ -243,6 +247,12 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(stop)
+
+	// Drain any journalled decisions once storage is reachable again, so a
+	// deployment that recovers while idle does not keep records on local disk.
+	reconcileCtx, stopReconciler := context.WithCancel(context.Background())
+	defer stopReconciler()
+	app.StartJournalReconciler(reconcileCtx, time.Minute)
 
 	reload := make(chan os.Signal, 1)
 	signal.Notify(reload, syscall.SIGHUP)
