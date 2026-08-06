@@ -13,27 +13,36 @@ import (
 	"github.com/hunterinvariants/promtact/internal/store"
 )
 
-// unwritableStorePath returns a data path whose parent cannot be created, which
-// makes every store write fail deterministically — a stand-in for the database
-// being unavailable.
-func unwritableStorePath(t *testing.T) string {
-	t.Helper()
-	blocker := filepath.Join(t.TempDir(), "blocker")
-	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return filepath.Join(blocker, "sub", "snapshot.json")
-}
-
+// degradedApp builds a server whose storage then breaks, standing in for the
+// database going away underneath a running deployment.
+//
+// The app is constructed while the data path is still usable — reading a
+// not-yet-existing snapshot succeeds on every platform — and only afterwards is
+// the parent directory replaced by a regular file, so every subsequent write
+// fails. Breaking the path up front is not portable: reading through a file
+// yields ENOTDIR on Linux but a plain "not found" on Windows, so construction
+// would fail on one platform and succeed on the other.
 func degradedApp(t *testing.T) (*App, string) {
 	t.Helper()
-	journalPath := filepath.Join(t.TempDir(), "decisions.jsonl")
+	root := t.TempDir()
+	parent := filepath.Join(root, "storage")
+	journalPath := filepath.Join(root, "decisions.jsonl")
+
 	app, err := NewWithOptions(Options{
-		DataPath:            unwritableStorePath(t),
+		DataPath:            filepath.Join(parent, "snapshot.json"),
 		DecisionJournalPath: journalPath,
 	})
 	if err != nil {
 		t.Fatalf("new app: %v", err)
+	}
+
+	// Storage goes away: the directory the snapshot lives in is now a file, so
+	// creating or writing it fails the way an unreachable database would.
+	if err := os.RemoveAll(parent); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(parent, []byte("storage is gone"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 	return app, journalPath
 }
