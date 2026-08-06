@@ -83,6 +83,7 @@ func main() {
 	validationResultPath := flag.String("validation-result-path", os.Getenv("PROMTACT_VALIDATION_RESULT_PATH"), "path to the detection-validation result JSON served at /api/gateway/validation")
 	validationHistoryPath := flag.String("validation-history-path", os.Getenv("PROMTACT_VALIDATION_HISTORY_PATH"), "path to the detection-validation history JSONL for the dashboard trend")
 	decisionJournalPath := flag.String("decision-journal-path", os.Getenv("PROMTACT_DECISION_JOURNAL_PATH"), "local journal for gateway records that could not be persisted, so enforcement survives a storage outage")
+	structuredLogs := flag.Bool("structured-logs", parseBoolEnv(os.Getenv("PROMTACT_STRUCTURED_LOGS")), "emit one JSON line per request with a correlation id, for log shipping")
 	identityCacheTTL := flag.Duration("identity-cache-ttl", 5*time.Minute, "how long a directory identity stays usable while the database is unreachable (0 disables the fallback)")
 	decisionJournalMax := flag.Int("decision-journal-max-entries", defaultIntEnv(os.Getenv("PROMTACT_DECISION_JOURNAL_MAX_ENTRIES"), 10000), "maximum records held in the decision journal before new ones are refused")
 	insecure := flag.Bool("insecure", parseBoolEnv(os.Getenv("PROMTACT_INSECURE")), "allow open mode on non-loopback listen addresses")
@@ -166,6 +167,7 @@ func main() {
 		DecisionJournalPath:       strings.TrimSpace(*decisionJournalPath),
 		DecisionJournalMaxEntries: *decisionJournalMax,
 		IdentityCacheTTL:          *identityCacheTTL,
+		StructuredLogs:            *structuredLogs,
 		CorrelationWindow:         window,
 		ThreatPackPath:            strings.TrimSpace(*threatPackPath),
 		DeceptionTokens:           deceptionTokens,
