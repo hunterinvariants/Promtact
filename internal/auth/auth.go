@@ -208,6 +208,12 @@ func (a *Authenticator) Login(ctx context.Context, username string, token string
 	return a.MintSession(principal)
 }
 
+// VerifyCredentials resolves a login without issuing a session, so a caller can
+// interpose a second factor between proving the first one and being let in.
+func (a *Authenticator) VerifyCredentials(ctx context.Context, username string, token string) (Principal, bool) {
+	return a.principalForCredentials(ctx, username, token)
+}
+
 // MintSession issues a console session. Service accounts are refused here as
 // well as in the directory query: a session is the surface a second factor
 // protects, and a machine identity has no person behind it to present one. The
@@ -363,6 +369,13 @@ func RequiredRoles(method string, path string) []string {
 	// restricted here and narrowed to the platform operator in the handler.
 	if path == "/metrics" {
 		return []string{RoleAdmin}
+	}
+	// Enrolling a second factor is self-service and acts only on the caller's
+	// own account, so every authenticated role must reach it. Without this the
+	// catch-all below would demand admin, leaving a viewer unable to secure
+	// their own login — which in practice means the tenant never enables MFA.
+	if strings.HasPrefix(path, "/api/auth/mfa") {
+		return []string{RoleViewer, RoleIngestor, RoleAnalyst, RoleOperator}
 	}
 	if path == "/api/audit" {
 		return []string{RoleAnalyst, RoleOperator}
