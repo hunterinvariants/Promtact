@@ -285,3 +285,46 @@ func (s *Store) ReactivateUser(ctx context.Context, userID string) error {
 	}
 	return nil
 }
+
+// UserByID resolves a directory record within a tenant. The tenant is part of
+// the lookup rather than checked afterwards, so a caller cannot reach another
+// customer's user by guessing an id.
+func (s *Store) UserByID(ctx context.Context, tenant string, id string) (TenantUser, bool, error) {
+	db, err := s.directoryDB()
+	if err != nil {
+		return TenantUser{}, false, err
+	}
+	var user TenantUser
+	var roles string
+	err = db.QueryRowContext(ctx, `
+SELECT id, tenant, name, roles, kind, status, created_at
+FROM promtact_tenant_users WHERE id = $1 AND tenant = $2`,
+		strings.TrimSpace(id), strings.ToLower(strings.TrimSpace(tenant))).
+		Scan(&user.ID, &user.Tenant, &user.Name, &roles, &user.Kind, &user.Status, &user.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return TenantUser{}, false, nil
+	}
+	if err != nil {
+		return TenantUser{}, false, err
+	}
+	user.Roles = decodeRoles(roles)
+	return user, true, nil
+}
+
+// SetUserRoles replaces a user's roles within a tenant.
+func (s *Store) SetUserRoles(ctx context.Context, tenant string, id string, roles []string) error {
+	db, err := s.directoryDB()
+	if err != nil {
+		return err
+	}
+	result, err := db.ExecContext(ctx,
+		`UPDATE promtact_tenant_users SET roles = $3 WHERE id = $1 AND tenant = $2`,
+		strings.TrimSpace(id), strings.ToLower(strings.TrimSpace(tenant)), encodeRoles(roles))
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return errors.New("user not found")
+	}
+	return nil
+}

@@ -370,6 +370,13 @@ func RequiredRoles(method string, path string) []string {
 	if path == "/metrics" {
 		return []string{RoleAdmin}
 	}
+	// Provisioning is account administration for a whole tenant: it creates
+	// principals and revokes their access. The generic read rule below would
+	// otherwise let any viewer enumerate the customer's entire user directory
+	// over GET.
+	if strings.HasPrefix(path, "/api/scim/") {
+		return []string{RoleAdmin}
+	}
 	// Enrolling a second factor is self-service and acts only on the caller's
 	// own account, so every authenticated role must reach it. Without this the
 	// catch-all below would demand admin, leaving a viewer unable to secure
