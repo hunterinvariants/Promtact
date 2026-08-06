@@ -27,6 +27,7 @@ import (
 	"github.com/hunterinvariants/promtact/internal/auth"
 	"github.com/hunterinvariants/promtact/internal/config"
 	"github.com/hunterinvariants/promtact/internal/correlator"
+	"github.com/hunterinvariants/promtact/internal/crypto"
 	"github.com/hunterinvariants/promtact/internal/domain"
 	"github.com/hunterinvariants/promtact/internal/exporter"
 	"github.com/hunterinvariants/promtact/internal/license"
@@ -211,6 +212,18 @@ func NewWithOptions(options Options) (*App, error) {
 			identityCacheTTL = 0
 		}
 		authenticator.SetDirectory(newStoreDirectory(st, identityCacheTTL))
+	}
+
+	// Envelope encryption for secrets that must be readable rather than hashed.
+	// It is opt-in, but a key that is configured and then rejected must stop
+	// startup: continuing would write plaintext while the operator believes the
+	// data is encrypted, which is the failure they would never notice.
+	keyProvider, err := crypto.LocalKeyProviderFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("encryption keys: %w", err)
+	}
+	if keyProvider != nil {
+		st.SetSealer(crypto.NewSealer(keyProvider))
 	}
 	oidcProvider, err := newOIDCProvider(options.OIDCIssuerURL, options.OIDCClientID, options.OIDCClientSecret, options.OIDCRedirectURL, options.OIDCScopes, options.OIDCTenantClaim, options.OIDCRoleClaim, options.OIDCEmailClaim, authenticator.SessionKey())
 	if err != nil {

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/hunterinvariants/promtact/internal/crypto"
 )
 
 // Multi-factor enrolment state for human accounts.
@@ -22,6 +24,22 @@ type MFAStatus struct {
 	ConfirmedAt    *time.Time `json:"confirmed_at,omitempty"`
 	RecoveryLeft   int        `json:"recovery_codes_remaining"`
 	TenantRequired bool       `json:"tenant_requires_mfa"`
+}
+
+// SetSealer attaches envelope encryption for secrets at rest. It is called
+// during startup, before the store serves traffic. Without one, values are
+// stored as before, so enabling encryption is opt-in and reversible for records
+// written while it was off.
+func (s *Store) SetSealer(sealer *crypto.Sealer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sealer = sealer
+}
+
+func (s *Store) currentSealer() *crypto.Sealer {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.sealer
 }
 
 // SetTenantMFARequired turns the second factor on or off for a whole tenant.
@@ -82,6 +100,14 @@ func (s *Store) EnrollMFA(ctx context.Context, userID string, secret string, rec
 		return errors.New("user id and secret are required")
 	}
 
+	// A TOTP seed has to be readable to verify a code, so unlike an API key it
+	// cannot be reduced to a hash. It is sealed instead, and a failure here
+	// aborts the enrolment rather than falling back to storing it in the clear.
+	secret, err = s.currentSealer().Seal(ctx, secret)
+	if err != nil {
+		return err
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -126,6 +152,10 @@ func (s *Store) MFASecret(ctx context.Context, userID string) (secret string, co
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, false, nil
 	}
+	if err != nil {
+		return "", false, false, err
+	}
+	secret, err = s.currentSealer().Open(ctx, secret)
 	if err != nil {
 		return "", false, false, err
 	}

@@ -8,12 +8,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hunterinvariants/promtact/internal/crypto"
 	"github.com/hunterinvariants/promtact/internal/domain"
 )
 
 type Store struct {
 	mu               sync.RWMutex
 	db               *sql.DB
+	sealer           *crypto.Sealer
 	mode             string
 	events           []domain.Event
 	alerts           []domain.Alert
