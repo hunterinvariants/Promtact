@@ -71,7 +71,8 @@ export default function Overview({ onNavigate }: { onNavigate?: Navigate }) {
           onClick={onNavigate && (() => onNavigate("alerts"))} />
         <Secondary label="Assets" value={status?.asset_count ?? "—"} hint="seen in this tenant"
           onClick={onNavigate && (() => onNavigate("assets"))} />
-        <Secondary label="Events" value={status?.event_count ?? "—"} hint="ingested" />
+        <Secondary label="Events" value={status?.event_count ?? "—"} hint="collected"
+          onClick={onNavigate && (() => onNavigate("events"))} />
         <Secondary label="Response actions" value={status?.action_count ?? "—"} hint="planned or executed" />
         <Secondary label="Audit records" value={status?.audit_count ?? "—"} hint="hash-chained"
           onClick={onNavigate && (() => onNavigate("health"))} />

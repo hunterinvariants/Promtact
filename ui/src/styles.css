@@ -978,3 +978,61 @@ tbody tr:hover {
 @media (max-width: 520px) {
   .health-facts dl > div { grid-template-columns: 1fr; gap: 0; }
 }
+
+/* ---------- Expanded rows ---------- */
+
+tr.is-clickable:hover { background: var(--accent-soft); }
+tr.is-clickable:hover td { cursor: pointer; }
+
+.alert-detail, .event-detail {
+  background: var(--page-plane, transparent);
+  padding: 16px 18px !important;
+}
+
+.detail-body { display: grid; gap: 16px; max-width: 62rem; }
+
+.detail-body section h4 {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.detail-body section p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
+
+.detail-body dl, .event-detail dl { margin: 0; display: grid; gap: 5px; }
+
+.detail-body dl > div, .event-detail dl > div {
+  display: grid;
+  grid-template-columns: 10rem 1fr;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.detail-body dt, .event-detail dt { color: var(--text-muted); text-transform: capitalize; }
+.detail-body dd, .event-detail dd { margin: 0; overflow-wrap: anywhere; }
+
+.detail-foot {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.event-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.event-controls input { min-width: 15rem; }
+
+.event-command {
+  max-width: 46rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .detail-body dl > div, .event-detail dl > div { grid-template-columns: 1fr; gap: 0; }
+}

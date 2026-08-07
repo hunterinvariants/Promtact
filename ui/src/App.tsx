@@ -3,12 +3,13 @@ import { api, ApiError, isPlatformAdmin, Session } from "./api";
 import Alerts from "./pages/Alerts";
 import Assets from "./pages/Assets";
 import Detections from "./pages/Detections";
+import Events from "./pages/Events";
 import Health from "./pages/Health";
 import Overview from "./pages/Overview";
 import Settings from "./pages/Settings";
 import Tenants from "./pages/Tenants";
 
-type PageKey = "overview" | "health" | "alerts" | "assets" | "detections" | "tenants" | "settings";
+type PageKey = "overview" | "health" | "alerts" | "events" | "assets" | "detections" | "tenants" | "settings";
 
 const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; title: string; subtitle: string }[] = [
   { key: "overview", label: "Overview", icon: "◎", title: "Overview", subtitle: "Current posture across your estate" },
@@ -20,6 +21,13 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; t
     subtitle: "Whether every part of the deployment is doing its job",
   },
   { key: "alerts", label: "Alerts", icon: "⚑", title: "Alerts", subtitle: "Correlated detections awaiting triage" },
+  {
+    key: "events",
+    label: "Events",
+    icon: "≡",
+    title: "Events",
+    subtitle: "Everything collected, searchable",
+  },
   { key: "assets", label: "Assets", icon: "▤", title: "Assets", subtitle: "Hosts and agent surfaces under watch" },
   {
     key: "detections",
@@ -188,6 +196,8 @@ export default function App() {
         return <Health onNavigate={setPage} />;
       case "alerts":
         return <Alerts />;
+      case "events":
+        return <Events />;
       case "assets":
         return <Assets />;
       case "detections":
