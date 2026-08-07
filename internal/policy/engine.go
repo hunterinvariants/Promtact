@@ -30,6 +30,22 @@ type Engine struct {
 	tenantPolicies      map[string]compiledTenantPolicy
 	historyMu           sync.Mutex
 	history             map[string]*gatewayHistoryState
+	untrustedWindow     time.Duration
+}
+
+// correlationWindow is how long a session stays marked after reading content it
+// did not author.
+//
+// It is deliberately its own setting rather than the correlator's window, which
+// answers a different question. Too short and the two halves of an injection
+// chain fall either side of it; too long and every later action in a long
+// session needs a person, which is how a control gets switched off. Thirty
+// minutes is a starting point, not a finding.
+func (e *Engine) correlationWindow() time.Duration {
+	if e.untrustedWindow > 0 {
+		return e.untrustedWindow
+	}
+	return 30 * time.Minute
 }
 
 type Config struct {
@@ -39,6 +55,9 @@ type Config struct {
 	DeceptionTokens     []domain.DeceptionToken
 	ToolProvenance      []ToolProvenanceEntry
 	AgentIdentities     []AgentIdentity
+	// UntrustedContentWindow is how long a session is treated as having read
+	// material it did not author. Zero means the default.
+	UntrustedContentWindow time.Duration
 }
 
 // AgentIdentity registers a known agent and the SHA-256 of its identity token.
@@ -144,6 +163,7 @@ func New(config Config) *Engine {
 		deception:           make(map[string]domain.DeceptionToken),
 		tenantPolicies:      make(map[string]compiledTenantPolicy),
 		history:             make(map[string]*gatewayHistoryState),
+		untrustedWindow:     config.UntrustedContentWindow,
 	}
 	engine.SetDeceptionTokens(config.DeceptionTokens)
 	return engine

@@ -28,6 +28,12 @@ type gatewayHistoryState struct {
 	LastTool      string
 	LastVerdict   domain.GatewayVerdict
 	RecentFactors []string
+
+	// What this session has read. A tool result is untrusted by origin, and the
+	// consequence of reading it belongs to the session rather than to the call
+	// that fetched it: the fetch is harmless, the next action is not.
+	ResultTaint []string
+	TaintedAt   time.Time
 }
 
 type gatewayHistorySnapshot struct {
@@ -41,6 +47,25 @@ type gatewayHistorySnapshot struct {
 	LastTool      string
 	LastVerdict   string
 	RecentFactors []string
+	ResultTaint   []string
+	TaintedAt     time.Time
+}
+
+// CarriesUntrustedContent reports whether this session has recently read
+// material it did not author.
+//
+// It expires. Treating a session as permanently suspect after one web page
+// would hold every later action for a person, and a control that holds
+// everything is a control somebody switches off by the end of the week. The
+// window is the same correlation window the rest of the engine uses.
+func (s gatewayHistorySnapshot) CarriesUntrustedContent(now time.Time, window time.Duration) bool {
+	if len(s.ResultTaint) == 0 || s.TaintedAt.IsZero() {
+		return false
+	}
+	if window <= 0 {
+		window = 30 * time.Minute
+	}
+	return now.Sub(s.TaintedAt) <= window
 }
 
 func gatewayHistoryKey(request domain.ToolCallRequest) string {
@@ -126,9 +151,41 @@ func (e *Engine) evictOldestHistoryLocked(n int) {
 	}
 }
 
+// RecordToolResultTaint attaches what a tool returned to the session that read
+// it, so the next call is judged knowing what came before it.
+//
+// This is the step that turns an observation into a control. Inspecting a
+// response and recording a finding tells an operator what happened; carrying
+// the mark forward is what stands between the poisoned page and the action it
+// was planted to cause.
+func (e *Engine) RecordToolResultTaint(request domain.ToolCallRequest, marks []string) {
+	if len(marks) == 0 {
+		return
+	}
+	key := gatewayHistoryKey(request)
+	e.historyMu.Lock()
+	defer e.historyMu.Unlock()
+
+	state := e.history[key]
+	if state == nil {
+		if maxGatewayHistoryEntries > 0 && len(e.history) >= maxGatewayHistoryEntries {
+			e.evictOldestHistoryLocked(gatewayHistoryEvictBatch)
+		}
+		state = &gatewayHistoryState{}
+		e.history[key] = state
+	}
+	state.ResultTaint = appendHistoryValues(state.ResultTaint, marks, 16)
+	state.TaintedAt = time.Now().UTC()
+	if state.LastSeen.IsZero() {
+		state.LastSeen = state.TaintedAt
+	}
+}
+
 func (s *gatewayHistoryState) snapshot(key string) gatewayHistorySnapshot {
 	return gatewayHistorySnapshot{
 		Key:           key,
+		ResultTaint:   append([]string(nil), s.ResultTaint...),
+		TaintedAt:     s.TaintedAt,
 		Calls:         s.Calls,
 		AllowCount:    s.AllowCount,
 		ApprovalCount: s.ApprovalCount,

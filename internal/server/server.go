@@ -1136,6 +1136,10 @@ func (a *App) handleGatewayProxy(w http.ResponseWriter, r *http.Request) {
 		// fetches a poisoned page is itself unremarkable, and the instructions
 		// ride back in the answer.
 		inspection := a.policy.InspectToolResult(req.ToolCall, string(body))
+		// Attach what came back to the session that read it. Without this the
+		// inspection is an observation; with it, the next call from this agent
+		// is judged knowing what preceded it.
+		a.policy.RecordToolResultTaint(req.ToolCall, inspection.Taint)
 		responseBody := string(body)
 		if inspection.Withheld() {
 			// Returning content judged hostile would make the inspection

@@ -285,6 +285,26 @@ func (e *Engine) assessGatewayRequest(request domain.ToolCallRequest, tool strin
 		}
 	}
 
+	// The chain, rather than any single call.
+	//
+	// Indirect prompt injection is two ordinary steps: read something, then act
+	// on it. Judged separately both pass — fetching a page is what the agent is
+	// for, and sending a message is a tool it was given. The attack only exists
+	// in the join, so the join is where it has to be caught.
+	//
+	// Note what this does not require: that anything was detected in the page.
+	// The session read material it did not author, and the next action reaches
+	// outward. That is enough to want a person, and it holds even when the
+	// injection was written in a way nobody has thought of yet.
+	if verdict == domain.GatewayAllow &&
+		history.CarriesUntrustedContent(time.Now().UTC(), e.correlationWindow()) &&
+		len(taint.Sinks) > 0 {
+		verdict = domain.GatewayRequireApproval
+		reason = "action reaches outward after this session read untrusted content, so it needs a person"
+		risk = maxSeverity(risk, domain.SeverityHigh)
+		findings = append(findings, "untrusted_context:"+strings.Join(history.ResultTaint, "|"))
+	}
+
 	if risk == "" {
 		risk = domain.SeverityInfo
 	}
