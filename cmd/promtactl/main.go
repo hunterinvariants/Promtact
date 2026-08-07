@@ -78,6 +78,10 @@ func main() {
 		if err := validateCommand(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
+	case "agent-demo":
+		if err := agentDemoCommand(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
 	case "mcp-tools":
 		if err := mcpToolsCommand(os.Args[2:]); err != nil {
 			log.Fatal(err)
@@ -818,6 +822,9 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  promtactl gateway call --tool NAME [--command ...] [--arguments ...] [--destination ...]")
 	fmt.Fprintln(os.Stderr, "  promtactl gateway demo         four tool calls through the gateway, with each verdict explained")
 	fmt.Fprintln(os.Stderr, "  promtactl gateway chain-demo   the two-step injection chain, end to end (run on the gateway host)")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "  promtactl mcp-tools --dir DIR --seed        tool server with real files, for demonstrations")
+	fmt.Fprintln(os.Stderr, "  promtactl agent-demo --via direct|gateway   the same agent with and without the gateway")
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "  promtactl tenant create   --name acme --display \"Acme GmbH\"")
 	fmt.Fprintln(os.Stderr, "  promtactl tenant add-agent --tenant acme")
