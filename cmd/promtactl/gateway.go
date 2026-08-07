@@ -42,7 +42,9 @@ func gatewayCommand(args []string) error {
 
 func gatewayUsage() {
 	fmt.Fprintln(os.Stderr, "usage: promtactl gateway call --tool <name> [--command ...] [--arguments ...] [--destination ...]")
-	fmt.Fprintln(os.Stderr, "       promtactl gateway demo")
+	fmt.Fprintln(os.Stderr, "       promtactl gateway demo         four calls, each verdict explained")
+	fmt.Fprintln(os.Stderr, "       promtactl gateway chain-demo   the two-step injection chain, end to end")
+	fmt.Fprintln(os.Stderr, "                                      (runs on the gateway host; serves its own page)")
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Submits a tool call for a verdict. A denied call does not run.")
 	fmt.Fprintln(os.Stderr, "Credentials: --token, --token-file, or PROMTACT_API_TOKEN.")
