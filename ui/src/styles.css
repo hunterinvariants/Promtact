@@ -567,3 +567,209 @@ tbody tr:hover {
     flex-direction: row;
   }
 }
+
+/* ---------- Decision funnel ----------
+   The product in one picture: every tool call, and what the gateway did with it.
+   Bars are proportional to the real counts, so a deployment that has refused
+   nothing looks like one that has refused nothing rather than showing a token
+   sliver of red. */
+
+.funnel {
+  background: var(--panel, #fff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px 22px;
+  margin-bottom: 14px;
+}
+
+.funnel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.funnel-head h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.funnel-sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  max-width: 46ch;
+}
+
+.funnel-total {
+  text-align: right;
+  line-height: 1.1;
+}
+
+.funnel-total-value {
+  display: block;
+  font-size: 2.1rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.funnel-total-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.funnel-rows {
+  display: grid;
+  gap: 12px;
+}
+
+.funnel-row {
+  display: grid;
+  grid-template-columns: 11rem 1fr 7rem;
+  grid-template-areas: "label bar value" ". note note";
+  align-items: center;
+  gap: 4px 14px;
+}
+
+.funnel-row-label {
+  grid-area: label;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.925rem;
+  font-weight: 500;
+}
+
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dot-allowed { background: var(--accent); }
+.dot-gated   { background: var(--status-warning); }
+.dot-denied  { background: var(--status-critical); }
+
+.funnel-bar {
+  grid-area: bar;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--gridline);
+  overflow: hidden;
+}
+
+.funnel-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 400ms ease;
+  min-width: 2px;
+}
+.fill-allowed { background: var(--accent); }
+.fill-gated   { background: var(--status-warning); }
+.fill-denied  { background: var(--status-critical); }
+
+.funnel-row-value {
+  grid-area: value;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.funnel-row-value strong { font-size: 1rem; }
+
+.funnel-row-share {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.funnel-row-note {
+  grid-area: note;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .funnel-row {
+    grid-template-columns: 1fr 5rem;
+    grid-template-areas: "label value" "bar bar" "note note";
+  }
+}
+
+/* ---------- Assurance strip ----------
+   Whether the record of those decisions can be trusted. Each item states a fact
+   rather than only a colour, so it stays legible to someone who does not know
+   the palette — and to someone who cannot distinguish red from green. */
+
+.assurance {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.assurance-item {
+  background: var(--panel, #fff);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+
+.assurance-item.is-ok      { border-left-color: var(--status-good); }
+.assurance-item.is-bad     { border-left-color: var(--status-critical); }
+.assurance-item.is-neutral { border-left-color: var(--baseline); }
+
+.assurance-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 3px;
+}
+
+.assurance-value {
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.assurance-note {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+/* ---------- Secondary counts ----------
+   Deliberately smaller than the funnel. Six equally weighted tiles make a
+   reader hunt for the point; these are context, not the headline. */
+
+.grid-secondary {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin-bottom: 14px;
+}
+
+.secondary {
+  background: var(--panel, #fff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+
+.secondary.is-warn { border-color: var(--status-warning); }
+
+.secondary-value {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.secondary-label { font-size: 0.85rem; margin-top: 1px; }
+
+.secondary-hint {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  margin-top: 2px;
+}

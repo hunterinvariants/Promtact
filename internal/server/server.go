@@ -472,9 +472,11 @@ func (a *App) handleStatus(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	tenant := tenantForPrincipal(principalFromRequest(r))
+	principal := principalFromRequest(r)
+	tenant := tenantForPrincipal(principal)
 	events, alerts, assets, actions, audits := a.countsForTenant(tenant)
 	writeJSON(w, http.StatusOK, domain.Status{
+		Assurance:        a.assuranceFor(principal),
 		Version:          Version,
 		InstanceName:     a.instanceName,
 		PublicURL:        a.publicURL,

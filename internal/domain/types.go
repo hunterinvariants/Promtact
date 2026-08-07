@@ -224,4 +224,31 @@ type Status struct {
 	SchemaVersion    int       `json:"schema_version,omitempty"`
 	LastStorageError string    `json:"last_storage_error,omitempty"`
 	LastExportError  string    `json:"last_export_error,omitempty"`
+
+	// Assurance describes the deployment rather than the caller's tenant, so it
+	// is populated only for the platform operator. A customer admin seeing these
+	// would learn the whole installation's traffic and health, which is the leak
+	// the metrics endpoint was fixed for.
+	Assurance *Assurance `json:"assurance,omitempty"`
+}
+
+// Assurance is the deployment-wide picture: what the gateway decided, and
+// whether the evidence for those decisions can be trusted.
+type Assurance struct {
+	DecisionsAllowed int `json:"decisions_allowed"`
+	DecisionsGated   int `json:"decisions_gated"`
+	DecisionsDenied  int `json:"decisions_denied"`
+	DecisionsTotal   int `json:"decisions_total"`
+
+	AuditChainValid bool `json:"audit_chain_valid"`
+	AuditChainIndex int  `json:"audit_chain_index"`
+
+	WitnessConfigured bool `json:"witness_configured"`
+	WitnessIndex      int  `json:"witness_index"`
+	WitnessDiverged   bool `json:"witness_diverged"`
+
+	DegradedMode        bool `json:"degraded_mode"`
+	JournalDepth        int  `json:"journal_depth"`
+	UnannouncedSessions int  `json:"unannounced_sessions"`
+	ShipperSilent       bool `json:"shipper_silent"`
 }

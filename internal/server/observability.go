@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/hunterinvariants/promtact/internal/auth"
 	"github.com/hunterinvariants/promtact/internal/domain"
 )
 
@@ -126,4 +127,45 @@ func (a *App) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "# TYPE promtact_postgres_wait_total counter")
 		fmt.Fprintf(w, "promtact_postgres_wait_total %d\n", stats.WaitCount)
 	}
+}
+
+// assuranceFor reports the deployment-wide picture, and only to the platform
+// operator. These numbers aggregate every tenant — total decision volume, the
+// health of the evidence trail, whether an operator accessed the database
+// unannounced. A customer's own admin must not read them, which is the same
+// rule the metrics endpoint enforces.
+func (a *App) assuranceFor(principal auth.Principal) *domain.Assurance {
+	if a.authenticationConfigured() && !isPlatformAdmin(principal) {
+		return nil
+	}
+
+	a.gatewayMu.Lock()
+	allowed, denied, gated := a.gatewayAllowed, a.gatewayDenied, a.gatewayQueued
+	a.gatewayMu.Unlock()
+
+	chain := a.store.AuditChain()
+	degraded, _, _ := a.DegradedState()
+	_, unannounced := a.accessLogSummary()
+
+	assurance := &domain.Assurance{
+		DecisionsAllowed: int(allowed),
+		DecisionsGated:   int(gated),
+		DecisionsDenied:  int(denied),
+		DecisionsTotal:   int(allowed + gated + denied),
+		AuditChainValid:  chain.Valid,
+		AuditChainIndex:  chain.Linked,
+		DegradedMode:     degraded,
+		JournalDepth:     a.journal.Depth(),
+
+		UnannouncedSessions: unannounced,
+		ShipperSilent:       a.accessLogSilent(),
+	}
+
+	if a.witness.enabled() {
+		witnessed, diverged, _ := a.witness.status()
+		assurance.WitnessConfigured = true
+		assurance.WitnessIndex = witnessed.Index
+		assurance.WitnessDiverged = diverged
+	}
+	return assurance
 }
