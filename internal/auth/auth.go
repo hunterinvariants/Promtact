@@ -444,6 +444,12 @@ func RequiredRoles(method string, path string) []string {
 	if path == "/api/events" || path == "/api/demo" {
 		return []string{RoleIngestor, RoleAnalyst, RoleOperator}
 	}
+	if strings.HasPrefix(path, "/api/assets/") {
+		// Removing an asset destroys its events, alerts and actions with it.
+		// Decommissioning a machine is an operator's job, but it is not an
+		// analyst's, and it should not fall through to the default by accident.
+		return []string{RoleOperator, RoleAdmin}
+	}
 	if strings.HasPrefix(path, "/api/responses/approve") {
 		return []string{RoleOperator}
 	}

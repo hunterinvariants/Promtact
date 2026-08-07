@@ -270,7 +270,7 @@ func NewWithOptions(options Options) (*App, error) {
 	for _, tenantPolicy := range options.TenantPolicies {
 		policyEngine.SetTenantPolicy(tenantPolicy)
 	}
-	return &App{
+	app := &App{
 		store:                 st,
 		policy:                policyEngine,
 		correlator:            correlator.New(options.CorrelationWindow),
@@ -331,7 +331,67 @@ func NewWithOptions(options Options) (*App, error) {
 		oidc:                   oidcProvider,
 		startedAt:              time.Now().UTC(),
 		licenseStatus:          licenseStatus,
-	}, nil
+	}
+	app.attachTaintStore()
+	return app, nil
+}
+
+// attachTaintStore gives the policy engine somewhere durable to keep session
+// marks, restores what is still inside the window, and starts pruning.
+//
+// Restoring at startup is the whole point. A mark saying a session has read
+// untrusted content is a control, and holding it only in the process meant a
+// deploy released every marked session at once, silently — nothing failed,
+// nothing logged, and the release was indistinguishable from normal operation.
+func (a *App) attachTaintStore() {
+	if a.store == nil {
+		return
+	}
+	a.policy.SetTaintStore(taintStoreAdapter{store: a.store})
+	if restored, err := a.policy.RestoreSessionTaint(); err != nil {
+		log.Printf("session taint could not be restored: %v", err)
+	} else if restored > 0 {
+		log.Printf("restored %d marked session(s)", restored)
+	}
+
+	// Expired rows are worthless the moment they fall outside the window, and
+	// without pruning the table grows with every session that ever ran.
+	go func() {
+		ticker := time.NewTicker(15 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			if _, err := a.store.PruneSessionTaint(time.Now().UTC().Add(-24 * time.Hour)); err != nil {
+				log.Printf("pruning session taint: %v", err)
+			}
+		}
+	}()
+}
+
+// taintStoreAdapter keeps the policy engine free of any knowledge of the store
+// package, and the store free of the policy package.
+type taintStoreAdapter struct {
+	store *store.Store
+}
+
+func (t taintStoreAdapter) SaveSessionTaint(tenant string, key string, marks []string, at time.Time) error {
+	return t.store.SaveSessionTaint(tenant, key, marks, at)
+}
+
+func (t taintStoreAdapter) LoadSessionTaint(since time.Time) ([]policy.SessionTaintRecord, error) {
+	rows, err := t.store.LoadSessionTaint(since)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]policy.SessionTaintRecord, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, policy.SessionTaintRecord{
+			Tenant:    row.Tenant,
+			Key:       row.Key,
+			Marks:     row.Marks,
+			TaintedAt: row.TaintedAt,
+		})
+	}
+	return records, nil
 }
 
 func (a *App) Routes() http.Handler {
@@ -369,6 +429,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/events", a.handleEvents)
 	mux.HandleFunc("/api/alerts", a.handleAlerts)
 	mux.HandleFunc("/api/assets", a.handleAssets)
+	mux.HandleFunc("/api/assets/", a.handleAssetResource)
 	mux.HandleFunc("/api/audit", a.handleAudit)
 	mux.HandleFunc("/api/audit/chain", a.handleAuditChain)
 	mux.HandleFunc("/api/tenants", a.handleTenants)
@@ -1285,6 +1346,65 @@ func (a *App) handleAssets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, a.listAssetsForTenant(tenantForPrincipal(principalFromRequest(r))))
+}
+
+// handleAssetResource removes a decommissioned asset and everything recorded
+// about it.
+//
+// The audit record is the reason this exists as an endpoint rather than as
+// advice to run SQL. Deleting rows by hand leaves nothing behind saying who
+// removed what, which is precisely the kind of unaccounted change the rest of
+// this system is built to make impossible.
+func (a *App) handleAssetResource(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		methodNotAllowed(w)
+		return
+	}
+	assetID := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/api/assets/"))
+	if assetID == "" || strings.Contains(assetID, "/") {
+		writeError(w, http.StatusBadRequest, errors.New("an asset id is required"))
+		return
+	}
+	assetID, err := url.PathUnescape(assetID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	principal := principalFromRequest(r)
+	tenant := tenantForPrincipal(principal)
+	if _, found := a.store.FindAsset(tenant, assetID); !found {
+		// Reporting success for something that was never there would let a typo
+		// read as a completed removal.
+		writeError(w, http.StatusNotFound, fmt.Errorf("no asset %q in this tenant", assetID))
+		return
+	}
+
+	counts, err := a.store.RemoveAsset(tenant, assetID)
+	if err != nil {
+		a.recordAudit(r, principal, "asset.remove", "asset", assetID, "failed", map[string]string{
+			"error": err.Error(),
+		})
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	a.recordAudit(r, principal, "asset.remove", "asset", assetID, "removed", map[string]string{
+		"asset_id": assetID,
+		"events":   fmt.Sprintf("%d", counts.Events),
+		"alerts":   fmt.Sprintf("%d", counts.Alerts),
+		"actions":  fmt.Sprintf("%d", counts.Actions),
+	})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"asset_id": assetID,
+		"removed": map[string]int{
+			"events":  counts.Events,
+			"alerts":  counts.Alerts,
+			"actions": counts.Actions,
+			"assets":  counts.Assets,
+		},
+		"note": "Audit records are not removed: the chain is hash-linked and the record that this existed outlives it.",
+	})
 }
 
 func (a *App) handleAudit(w http.ResponseWriter, r *http.Request) {

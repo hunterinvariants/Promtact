@@ -163,9 +163,8 @@ func (e *Engine) RecordToolResultTaint(request domain.ToolCallRequest, marks []s
 		return
 	}
 	key := gatewayHistoryKey(request)
-	e.historyMu.Lock()
-	defer e.historyMu.Unlock()
 
+	e.historyMu.Lock()
 	state := e.history[key]
 	if state == nil {
 		if maxGatewayHistoryEntries > 0 && len(e.history) >= maxGatewayHistoryEntries {
@@ -179,6 +178,110 @@ func (e *Engine) RecordToolResultTaint(request domain.ToolCallRequest, marks []s
 	if state.LastSeen.IsZero() {
 		state.LastSeen = state.TaintedAt
 	}
+	persisted := append([]string(nil), state.ResultTaint...)
+	at := state.TaintedAt
+	e.historyMu.Unlock()
+
+	// Write through, outside the lock. The in-memory mark already applies, so a
+	// storage failure cannot make this call less safe than it was — it only
+	// means a restart would forget, which is why the failure is recorded rather
+	// than swallowed.
+	if store := e.taintStore(); store != nil {
+		if err := store.SaveSessionTaint(request.Tenant, key, persisted, at); err != nil {
+			e.recordTaintStoreError(err)
+		} else {
+			e.recordTaintStoreError(nil)
+		}
+	}
+}
+
+// TaintStore is the durable home for session marks.
+//
+// It is an interface rather than a direct dependency because the policy engine
+// has no business knowing about databases, and because a deployment running in
+// memory has nowhere to put these and should not be forced to pretend.
+type TaintStore interface {
+	SaveSessionTaint(tenant string, key string, marks []string, at time.Time) error
+	LoadSessionTaint(since time.Time) ([]SessionTaintRecord, error)
+}
+
+// SessionTaintRecord mirrors the stored row without the policy package taking a
+// dependency on the store package.
+type SessionTaintRecord struct {
+	Tenant    string
+	Key       string
+	Marks     []string
+	TaintedAt time.Time
+}
+
+func (e *Engine) SetTaintStore(store TaintStore) {
+	e.taintMu.Lock()
+	e.taintStoreRef = store
+	e.taintMu.Unlock()
+}
+
+func (e *Engine) taintStore() TaintStore {
+	e.taintMu.RLock()
+	defer e.taintMu.RUnlock()
+	return e.taintStoreRef
+}
+
+func (e *Engine) recordTaintStoreError(err error) {
+	e.taintMu.Lock()
+	defer e.taintMu.Unlock()
+	if err == nil {
+		e.taintStoreErr = ""
+		return
+	}
+	e.taintStoreErr = err.Error()
+}
+
+// TaintStoreError reports the last failure to persist a mark, so the health view
+// can say that marks are no longer surviving a restart. Silence here would mean
+// the control degrades without anyone being told.
+func (e *Engine) TaintStoreError() string {
+	e.taintMu.RLock()
+	defer e.taintMu.RUnlock()
+	return e.taintStoreErr
+}
+
+// RestoreSessionTaint reloads marks after a restart.
+//
+// Called at startup with the same window the engine enforces, so anything
+// already expired is neither loaded nor considered.
+func (e *Engine) RestoreSessionTaint() (int, error) {
+	store := e.taintStore()
+	if store == nil {
+		return 0, nil
+	}
+	records, err := store.LoadSessionTaint(time.Now().UTC().Add(-e.correlationWindow()))
+	if err != nil {
+		e.recordTaintStoreError(err)
+		return 0, err
+	}
+
+	e.historyMu.Lock()
+	defer e.historyMu.Unlock()
+	restored := 0
+	for _, record := range records {
+		if len(record.Marks) == 0 || record.Key == "" {
+			continue
+		}
+		state := e.history[record.Key]
+		if state == nil {
+			state = &gatewayHistoryState{}
+			e.history[record.Key] = state
+		}
+		state.ResultTaint = appendHistoryValues(state.ResultTaint, record.Marks, 16)
+		if record.TaintedAt.After(state.TaintedAt) {
+			state.TaintedAt = record.TaintedAt
+		}
+		if state.LastSeen.IsZero() {
+			state.LastSeen = record.TaintedAt
+		}
+		restored++
+	}
+	return restored, nil
 }
 
 func (s *gatewayHistoryState) snapshot(key string) gatewayHistorySnapshot {

@@ -31,6 +31,9 @@ type Engine struct {
 	historyMu           sync.Mutex
 	history             map[string]*gatewayHistoryState
 	untrustedWindow     time.Duration
+	taintMu             sync.RWMutex
+	taintStoreRef       TaintStore
+	taintStoreErr       string
 }
 
 // correlationWindow is how long a session stays marked after reading content it

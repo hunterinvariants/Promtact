@@ -80,6 +80,20 @@ func gatewayChainDemo(args []string) error {
 		"tool_call":    fetch,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "blocked address") {
+			// Not a fault. A deployment that fetched a loopback or private
+			// address on a caller's say-so would have a server-side request
+			// forgery problem, so a production gateway refuses — including when
+			// the caller is this demo, running on its own host.
+			return fmt.Errorf(
+				"this deployment refuses to fetch a private address, which is correct and is why\n"+
+					"the demo cannot serve its own page to it.\n\n"+
+					"To see the chain against this build, run a throwaway gateway that permits it:\n"+
+					"  promtact --addr 127.0.0.1:8099 --api-token demo --proxy-allow-local-targets\n"+
+					"  promtactl gateway chain-demo --url http://127.0.0.1:8099 --token demo\n\n"+
+					"To see it against this deployment, the page has to sit somewhere the deployment\n"+
+					"can reach over the public internet.\n\noriginal error: %w", err)
+		}
 		return fmt.Errorf("step 1: %w", err)
 	}
 

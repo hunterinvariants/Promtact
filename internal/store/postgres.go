@@ -352,6 +352,32 @@ CREATE TABLE IF NOT EXISTS promtact_mfa_recovery_codes (
 CREATE INDEX IF NOT EXISTS idx_promtact_mfa_recovery_user
 ON promtact_mfa_recovery_codes (user_id) WHERE used_at IS NULL;`,
 	},
+	{
+		Version: 8,
+		Name:    "session_taint",
+		SQL: `
+-- What an agent session has read, so a restart does not clear it.
+--
+-- The mark is what stands between a poisoned page and the action it was
+-- planted to cause. Holding it only in memory meant a deploy, a crash or an
+-- ordinary restart silently released every marked session at once - and the
+-- release would look exactly like normal operation, because nothing fails.
+--
+-- Rows are small, short-lived and rewritten on every tool result, so this is
+-- deliberately not part of the snapshot: it is its own table with its own
+-- pruning.
+CREATE TABLE IF NOT EXISTS promtact_session_taint (
+  tenant TEXT NOT NULL,
+  session_key TEXT NOT NULL,
+  marks TEXT NOT NULL,
+  tainted_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (tenant, session_key)
+);
+
+-- Pruning is by age, so that is what is indexed.
+CREATE INDEX IF NOT EXISTS idx_promtact_session_taint_age
+ON promtact_session_taint (tainted_at);`,
+	},
 }
 
 func (s *Store) postgresLoad(ctx context.Context) error {
