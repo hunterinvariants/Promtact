@@ -103,22 +103,60 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadGateway, err)
 				return
 			}
-			action := a.gatewayActionFromDecision(toolCall, decision, tenant, "not_required", "executed")
+			// An MCP tool result is the most likely carrier of an indirect
+			// injection in a real deployment: it is where a page, a ticket or a
+			// document arrives, already framed as an answer the agent asked for.
+			inspection := a.policy.InspectToolResult(toolCall, mcpResultText(resp))
+			a.policy.RecordToolResultTaint(toolCall, inspection.Taint)
+
+			executionStatus := "executed"
+			if inspection.Withheld() {
+				executionStatus = "withheld"
+			}
+			action := a.gatewayActionFromDecision(toolCall, decision, tenant, "not_required", executionStatus)
 			action.Type = "mcp_proxy"
 			action.Metadata["mcp_method"] = rpc.Method
 			action.Metadata["mcp_upstream_url"] = a.gatewayMCPUpstream()
 			action.Metadata["mcp_raw_request"] = base64.RawURLEncoding.EncodeToString(raw)
+			if len(inspection.Findings) > 0 {
+				action.Metadata["result_findings"] = strings.Join(inspection.Findings, ",")
+				action.Metadata["result_reason"] = inspection.Reason
+			}
+			if len(inspection.Taint) > 0 {
+				action.Metadata["result_taint"] = strings.Join(inspection.Taint, ",")
+			}
 			a.prepareAction(&action, tenant)
 			a.persistActions(tenant, []domain.ResponseAction{action})
-			a.recordAudit(r, principal, "mcp.proxy", "tool_call", decision.RequestID, "executed", map[string]string{
-				"method":      rpc.Method,
-				"tool":        decision.ToolName,
-				"risk":        string(decision.Risk),
-				"reason":      decision.Reason,
-				"destination": a.gatewayMCPUpstream(),
-				"action_id":   decisionActionID(&action),
-				"status":      fmt.Sprintf("%d", status),
+			a.recordAudit(r, principal, "mcp.proxy", "tool_call", decision.RequestID, executionStatus, map[string]string{
+				"method":         rpc.Method,
+				"tool":           decision.ToolName,
+				"risk":           string(decision.Risk),
+				"reason":         decision.Reason,
+				"destination":    a.gatewayMCPUpstream(),
+				"action_id":      decisionActionID(&action),
+				"status":         fmt.Sprintf("%d", status),
+				"result_verdict": string(inspection.Verdict),
+				"result_reason":  inspection.Reason,
 			})
+			if inspection.Withheld() {
+				// A JSON-RPC error rather than an empty body: an MCP client that
+				// receives nothing reports a broken server, and the operator
+				// then goes looking for the wrong fault.
+				writeJSON(w, http.StatusOK, mcpJSONRPCResponse{
+					JSONRPC: "2.0",
+					ID:      rpc.ID,
+					Error: &mcpJSONRPCError{
+						Code:    451,
+						Message: "tool result withheld by policy",
+						Data: map[string]any{
+							"reason":   inspection.Reason,
+							"findings": inspection.Findings,
+							"evidence": inspection.Evidence,
+						},
+					},
+				})
+				return
+			}
 			writeMCPResponse(w, status, resp)
 			return
 		case domain.GatewayRequireApproval:
@@ -190,6 +228,48 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeMCPResponse(w, status, resp)
+}
+
+// mcpResultText pulls the human-readable content out of a JSON-RPC response so
+// it can be inspected as text.
+//
+// Decoding first is not tidiness. A server that emits \uXXXX escapes — which
+// JSON permits and several MCP implementations do — would hide smuggled Unicode
+// from any scan of the raw bytes: the tag characters that carry a hidden
+// instruction arrive as ASCII escape sequences and read as harmless. Decoding
+// turns them back into the runes they are.
+//
+// Every string in the result is collected rather than only the fields the
+// specification names, because a tool is free to return its content anywhere in
+// its own schema, and content that is not looked at is content that is trusted.
+func mcpResultText(response []byte) string {
+	var decoded map[string]any
+	if err := json.Unmarshal(response, &decoded); err != nil {
+		// Not JSON, or truncated. Inspect what arrived rather than nothing.
+		return string(response)
+	}
+	result, ok := decoded["result"]
+	if !ok {
+		return string(response)
+	}
+	var collected []string
+	var walk func(node any)
+	walk = func(node any) {
+		switch value := node.(type) {
+		case string:
+			collected = append(collected, value)
+		case []any:
+			for _, item := range value {
+				walk(item)
+			}
+		case map[string]any:
+			for _, item := range value {
+				walk(item)
+			}
+		}
+	}
+	walk(result)
+	return strings.Join(collected, "\n")
 }
 
 func (a *App) forwardMCPRequest(ctx context.Context, raw []byte, method string, upstreamURL string, upstreamToken string) ([]byte, int, error) {
