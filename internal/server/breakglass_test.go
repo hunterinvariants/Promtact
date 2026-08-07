@@ -132,11 +132,25 @@ func TestCoversAnswersTheReconcilersQuestion(t *testing.T) {
 	if !register.Covers(now.Add(10 * time.Minute)) {
 		t.Error("the closing instant should be covered")
 	}
-	if register.Covers(now.Add(-11 * time.Minute)) {
-		t.Error("access before the announcement was reported as covered")
+	// Just outside, but inside the tolerance for clock skew and the whole-second
+	// precision of the database log.
+	if !register.Covers(now.Add(-11 * time.Minute)) {
+		t.Error("a session one minute before the announcement should fall in the grace period")
 	}
-	if register.Covers(now.Add(11 * time.Minute)) {
-		t.Error("access after the window was reported as covered")
+	if !register.Covers(now.Add(11 * time.Minute)) {
+		t.Error("a session one minute after the window should fall in the grace period")
+	}
+
+	// Beyond the tolerance it is uncovered, and the grace must stay small
+	// enough that this is true within minutes rather than hours.
+	if register.Covers(now.Add(-15 * time.Minute)) {
+		t.Error("access well before the announcement was reported as covered")
+	}
+	if register.Covers(now.Add(15 * time.Minute)) {
+		t.Error("access well after the window was reported as covered")
+	}
+	if breakglassGrace > 5*time.Minute {
+		t.Errorf("the grace period has grown to %s; every second of it excuses an unannounced session", breakglassGrace)
 	}
 
 	// Once closed, the window no longer covers anything: an operator who closes

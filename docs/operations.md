@@ -905,3 +905,97 @@ The key-encryption key sits behind a `KeyProvider` interface. The provider that
 ships holds keys in process memory from the environment; a deployment with a KMS
 or HSM implements that interface instead, without touching any code that reads
 or writes secrets.
+
+## Operator access: announcing and observing
+
+Two halves that only work together. Break-glass says what an operator intends
+to do; the access shipper reports what Postgres actually saw. A session with no
+announcement covering it becomes an audit record and an alert.
+
+Neither half is sufficient alone. Announcing is voluntary and can be skipped;
+observing without an announcement to compare against produces noise nobody
+reads. The pair is the control.
+
+### Announcing
+
+```bash
+promtactl breakglass --reason "restoring the tenant that lost its API keys" --minutes 20
+promtactl breakglass --list
+promtactl breakglass --close bg-...
+```
+
+The announcement is written to the audit chain, carried to the external witness
+on the next anchor, and pushed as an alert. **No credential is issued** — this
+makes access visible, it does not grant it, and keeping it that way is what
+avoids giving the application the right to administer database roles.
+
+A reason under twelve characters is refused, and the window is capped at eight
+hours.
+
+### Observing
+
+Postgres must log connections with enough context to attribute them. In
+`postgresql.conf`:
+
+```
+log_connections = on
+log_disconnections = on
+log_line_prefix = '%m [%p] user=%u,db=%d,app=%a,client=%h '
+```
+
+Reload with `SELECT pg_reload_conf();`. The `app=%a` field is the one that
+matters: the service sets `application_name=promtact` on its own connections, so
+its ordinary traffic is distinguishable from an operator's `psql`.
+
+Then install the shipper:
+
+```bash
+install -m 755 scripts/promtact-access-shipper.sh /usr/local/sbin/promtact-access-shipper
+install -m 640 -o root -g promtact /dev/null /etc/promtact/access-shipper.env
+```
+
+Fill in `/etc/promtact/access-shipper.env`:
+
+```
+PROMTACT_URL=http://127.0.0.1:8080
+PROMTACT_ADMIN_TOKEN=<an admin token>
+PROMTACT_PG_LOG=/var/log/postgresql/postgresql-16-main.log
+```
+
+The shipper needs no database credentials — it reads what Postgres already
+wrote. It runs as the service user in group `adm` so it can read the log and
+nothing else.
+
+```bash
+install -m 644 packaging/systemd/promtact-access-shipper.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now promtact-access-shipper
+```
+
+### Checking it works
+
+```bash
+# Should report a recent heartbeat and no unannounced sessions.
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/admin/access-log
+
+# Connect without announcing. This must produce an alert.
+psql "$PROMTACT_POSTGRES_DSN" -c 'SELECT 1' >/dev/null
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/admin/access-log
+```
+
+The second call must show `sessions_unannounced` incremented, and the alert
+should reach your phone. **If it does not, the control is not working** — check
+that `log_connections` is on and that the log path is right.
+
+### The limits, stated
+
+- The shipper runs on the host and an operator can stop it. Silence after it has
+  reported is treated as a signal (`shipper_silent`), but the gap between
+  stopping it and noticing is real.
+- Announcements are held in memory. They are a convenience for the reconciler;
+  the evidence is the audit record, which is durable and witnessed.
+- A restart clears open windows, so sessions during the restart window read as
+  unannounced. That errs towards noise rather than silence, which is the right
+  direction.
+- None of this prevents an operator from reading data. It makes reading
+  attributable and makes erasing the record detectable. On a single host with
+  one root user, that is the honest ceiling.

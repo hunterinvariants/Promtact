@@ -16,7 +16,10 @@ const postgresTimeout = 10 * time.Second
 const loginBackoffCap = 1 * time.Minute
 
 func NewWithPostgres(dsn string) (*Store, error) {
-	db, err := sql.Open("pgx", dsn)
+	// The connection announces itself. Without it the access-log reconciler
+	// cannot tell the application's own sessions from an operator's, and would
+	// either alert on every ordinary query or on none.
+	db, err := sql.Open("pgx", withApplicationName(dsn))
 	if err != nil {
 		return nil, err
 	}
@@ -962,4 +965,17 @@ func redactDSN(dsn string) string {
 		return ""
 	}
 	return "postgres"
+}
+
+// withApplicationName adds application_name to a DSN unless the caller already
+// set one, so an operator can still override it deliberately.
+func withApplicationName(dsn string) string {
+	if strings.Contains(dsn, "application_name=") {
+		return dsn
+	}
+	separator := "?"
+	if strings.Contains(dsn, "?") {
+		separator = "&"
+	}
+	return dsn + separator + "application_name=promtact"
 }

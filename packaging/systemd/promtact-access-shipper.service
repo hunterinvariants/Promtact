@@ -1,0 +1,45 @@
+[Unit]
+Description=Promtact database access shipper
+Documentation=https://github.com/hunterinvariants/Promtact/blob/main/docs/access-control.md
+After=promtact.service postgresql.service
+Wants=promtact.service
+
+[Service]
+Type=simple
+# Runs as its own user with read access to the Postgres log only. It needs no
+# database credentials: it reads what Postgres already wrote.
+User=promtact
+Group=adm
+ExecStart=/usr/local/sbin/promtact-access-shipper
+EnvironmentFile=/etc/promtact/access-shipper.env
+Restart=always
+RestartSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RemoveIPC=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

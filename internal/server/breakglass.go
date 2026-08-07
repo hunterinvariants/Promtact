@@ -35,6 +35,17 @@ import (
 const (
 	breakglassMinReason = 12
 	breakglassMaxWindow = 8 * time.Hour
+
+	// Observed sessions and announced windows come from different clocks and
+	// different precisions: the database log reports whole seconds, the window
+	// is opened with nanoseconds, and an operator announces and connects in the
+	// same breath. Without a small tolerance the ordinary, honest sequence
+	// registers as a violation — and an alarm that fires on correct behaviour
+	// is one that gets switched off.
+	//
+	// It is kept deliberately short. Every second of grace is a second in which
+	// an unannounced session would be excused.
+	breakglassGrace = 2 * time.Minute
 )
 
 type breakglassSession struct {
@@ -83,7 +94,8 @@ func (b *breakglassRegister) Covers(at time.Time) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	for _, session := range b.open {
-		if !at.Before(session.OpenedAt) && !at.After(session.ExpiresAt) {
+		if !at.Before(session.OpenedAt.Add(-breakglassGrace)) &&
+			!at.After(session.ExpiresAt.Add(breakglassGrace)) {
 			return true
 		}
 	}

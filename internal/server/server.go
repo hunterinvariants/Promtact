@@ -63,6 +63,7 @@ type App struct {
 	tracer                 *tracer
 	witness                *witness
 	breakglass             *breakglassRegister
+	accessLog              *accessLogState
 	degradedMu             sync.Mutex
 	degradedSince          time.Time
 	degradedReason         string
@@ -283,6 +284,7 @@ func NewWithOptions(options Options) (*App, error) {
 		tracer:                newTracer(options.TraceEndpoint, options.TraceServiceName, nil, options.TraceQueueSize),
 		witness:               newWitness(options.WitnessEndpoint, options.WitnessToken),
 		breakglass:            newBreakglassRegister(),
+		accessLog:             &accessLogState{},
 		threatPackPath:        strings.TrimSpace(options.ThreatPackPath),
 		auth:                  authenticator,
 		trustedProxies:        trustedProxies,
@@ -340,6 +342,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/status", a.handleStatus)
 	mux.HandleFunc("/api/openapi.json", a.handleOpenAPI)
 	mux.HandleFunc("/api/session", a.handleSession)
+	mux.HandleFunc("/api/admin/access-log", a.handleAccessLog)
 	mux.HandleFunc("/api/admin/breakglass", a.handleBreakglass)
 	mux.HandleFunc("/api/admin/breakglass/", a.handleBreakglassClose)
 	mux.HandleFunc("/api/audit/witness", a.handleAuditWitness)
