@@ -480,6 +480,16 @@ func windowEventToDomain(rec windowsEventRecord) domain.Event {
 			"source_os": runtime.GOOS,
 		},
 	}
+	// Windows keeps the substance of a record — which binary ran, with which
+	// command line, under which account — in the rendered message rather than in
+	// fields of its own. Left unparsed, every alert raised on such an event has
+	// an empty evidence block: the rule matches on the message text and then
+	// reports two columns that were never filled in.
+	fields := windowsMessageFields(rec.Message)
+	event.Process = windowsField(fields, "new process name", "image", "process name", "application name", "service name")
+	event.Command = windowsField(fields, "process command line", "commandline", "command line")
+	event.Actor = windowsField(fields, "account name", "user")
+
 	switch rec.EventID {
 	case 1, 4688:
 		event.Kind = domain.EventProcessStart
@@ -492,6 +502,49 @@ func windowEventToDomain(rec windowsEventRecord) domain.Event {
 		event.Timestamp = time.Now().UTC()
 	}
 	return event
+}
+
+// windowsMessageFields pulls the "Key: Value" lines out of a rendered event
+// message.
+//
+// The first occurrence of a key wins, deliberately. Event 4688 carries
+// "Account Name" twice — first the account that started the process, then the
+// identity the new process runs as — and it is the former that answers the
+// question a reader is actually asking, which is who did this.
+func windowsMessageFields(message string) map[string]string {
+	fields := make(map[string]string)
+	for _, line := range strings.Split(message, "\n") {
+		line = strings.TrimSpace(strings.ReplaceAll(line, "\r", ""))
+		idx := strings.Index(line, ":")
+		if idx <= 0 {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(line[:idx]))
+		value := strings.TrimSpace(line[idx+1:])
+		// Windows writes "-" for a field that does not apply. Carrying that
+		// through would put a dash in front of someone as though it meant
+		// something.
+		if key == "" || value == "" || value == "-" {
+			continue
+		}
+		if _, seen := fields[key]; !seen {
+			fields[key] = value
+		}
+	}
+	return fields
+}
+
+// windowsField returns the first key that is present, so callers can list the
+// spellings different providers use for the same thing: Sysmon writes "Image"
+// and "CommandLine" where the Security log writes "New Process Name" and
+// "Process Command Line".
+func windowsField(fields map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if value := fields[key]; value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func journalRecordToDomain(rec journalRecord) domain.Event {

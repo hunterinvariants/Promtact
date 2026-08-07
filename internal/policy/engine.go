@@ -416,17 +416,21 @@ func (e *Engine) Evaluate(event domain.Event) []domain.Alert {
 		))
 	}
 
-	if event.Kind == domain.EventProcessStart && func() bool {
-		match, _, _ := gatewayContainsAny(gatewayTextVariants(event.Command, event.Process, event.Signal, metadataText(event.Metadata)), discoveryTerms())
-		return match
-	}() {
+	if match, term, variant := gatewayContainsAny(
+		gatewayTextVariants(event.Command, event.Process, event.Signal, metadataText(event.Metadata)),
+		discoveryTerms(),
+	); match && event.Kind == domain.EventProcessStart {
 		alerts = append(alerts, newAlert(
 			"process.discovery.chain",
 			"Suspicious discovery process",
 			"Process activity matched discovery, credential-access, or lateral-movement telemetry patterns.",
 			domain.SeverityHigh,
 			event,
-			map[string]string{"process": event.Process, "command": event.Command},
+			matchEvidence(event, term, variant, map[string]string{
+				"process": event.Process,
+				"command": event.Command,
+				"account": event.Actor,
+			}),
 		))
 	}
 
@@ -468,6 +472,74 @@ func (e *Engine) Evaluate(event domain.Event) []domain.Alert {
 	}
 
 	return alerts
+}
+
+// matchEvidence records what a rule actually matched, rather than the fields it
+// hoped would be populated.
+//
+// These rules match on four sources: the command, the process, the signal, and
+// the raw record text. Reporting only the first two leaves the evidence block
+// empty whenever the match came from somewhere else — which is the normal case
+// for a Windows event log record, where the substance is in the message. The
+// console then renders an alert that describes a finding and cannot show it,
+// and the reader is told to go and look at evidence that was never attached.
+//
+// So the matched term is always recorded, and when nothing structured survives,
+// the text the match came from is quoted directly.
+func matchEvidence(event domain.Event, term, variant string, fields map[string]string) map[string]string {
+	evidence := make(map[string]string, len(fields)+2)
+	for key, value := range fields {
+		if strings.TrimSpace(value) != "" {
+			evidence[key] = value
+		}
+	}
+	evidence["matched"] = term
+	if len(evidence) == 1 {
+		source := variant
+		// Prefer the record as Windows wrote it over the normalised form the
+		// matcher works on, which is lowercased and stripped.
+		if raw := event.Metadata["message"]; raw != "" &&
+			strings.Contains(strings.ToLower(raw), strings.ToLower(term)) {
+			source = raw
+		}
+		evidence["observed"] = excerptAround(source, term)
+	}
+	return evidence
+}
+
+// excerptAround returns the neighbourhood of the match. A Windows event message
+// runs to several hundred characters of boilerplate around the one line that
+// matters, and pasting all of it into an alert hides the finding rather than
+// showing it.
+func excerptAround(text, term string) string {
+	const window = 200
+	text = strings.TrimSpace(text)
+	if len(text) <= window {
+		return text
+	}
+	idx := strings.Index(strings.ToLower(text), strings.ToLower(term))
+	if idx < 0 {
+		return strings.TrimSpace(text[:window]) + "…"
+	}
+	start := idx - window/3
+	if start < 0 {
+		start = 0
+	}
+	end := start + window
+	if end > len(text) {
+		end = len(text)
+		if start = end - window; start < 0 {
+			start = 0
+		}
+	}
+	prefix, suffix := "", ""
+	if start > 0 {
+		prefix = "…"
+	}
+	if end < len(text) {
+		suffix = "…"
+	}
+	return prefix + strings.TrimSpace(text[start:end]) + suffix
 }
 
 func newAlert(ruleID, title, description string, severity domain.Severity, event domain.Event, evidence map[string]string) domain.Alert {

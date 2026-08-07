@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { api } from "../api";
 import { Badge, Empty, Panel, severityTone } from "../components";
+import { AlertDetail } from "./Alerts";
+import { explainRule } from "../explain";
 
 // The overview answers two questions in order: what did enforcement do, and can
 // the record of it be trusted. Everything else is secondary and sized that way.
@@ -27,6 +29,7 @@ type Assurance = {
 type Navigate = (page: any) => void;
 
 export default function Overview({ onNavigate }: { onNavigate?: Navigate }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [status, setStatus] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [error, setError] = useState("");
@@ -92,21 +95,37 @@ export default function Overview({ onNavigate }: { onNavigate?: Navigate }) {
               </tr>
             </thead>
             <tbody>
-              {openAlerts.slice(0, 8).map((alert) => (
-                <tr key={alert.id}>
-                  <td>
-                    <Badge tone={severityTone(alert.severity)}>{alert.severity || "info"}</Badge>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{alert.title || alert.rule_id}</div>
-                    <div className="panel-note mono">{alert.rule_id}</div>
-                  </td>
-                  <td className="mono">{alert.asset_id || "—"}</td>
-                  <td className="num panel-note">
-                    {alert.created_at ? new Date(alert.created_at).toLocaleString() : "—"}
-                  </td>
-                </tr>
-              ))}
+              {openAlerts.slice(0, 8).map((alert) => {
+                const open = expanded === alert.id;
+                const explained = explainRule(alert.rule_id);
+                return (
+                  <Fragment key={alert.id}>
+                    <tr
+                      className="is-clickable"
+                      onClick={() => setExpanded(open ? null : alert.id)}
+                    >
+                      <td>
+                        <Badge tone={severityTone(alert.severity)}>{alert.severity || "info"}</Badge>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 500 }}>{alert.title || alert.rule_id}</div>
+                        <div className="panel-note">{explained.summary || alert.rule_id}</div>
+                      </td>
+                      <td className="mono">{alert.asset_id || "—"}</td>
+                      <td className="num panel-note">
+                        {alert.created_at ? new Date(alert.created_at).toLocaleString() : "—"}
+                      </td>
+                    </tr>
+                    {open ? (
+                      <tr>
+                        <td colSpan={4} className="event-detail">
+                          <AlertDetail alert={alert} explained={explained} />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}

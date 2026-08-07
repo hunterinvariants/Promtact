@@ -29,16 +29,26 @@ const RULES: Record<string, Explanation> = {
     what:
       "A process on this machine ran a command of the kind used to survey what else is " +
       "reachable — listing accounts, shares, sessions, network configuration or domain " +
-      "details. The exact command is under Evidence below.",
+      "details. Evidence below shows what was seen: `matched` is the exact term that " +
+      "triggered this, and `command`, `process` and `account` are the record's own fields " +
+      "where Windows supplied them. Where it did not, `observed` quotes the record text.",
     why:
       "On its own this is unremarkable: administrators and installers do it constantly. " +
       "It matters because it is also the first thing an intruder does after gaining a " +
       "foothold, and it usually happens minutes before anything worse. Seen together with " +
       "credential access or an unfamiliar outbound connection, it stops being routine.",
     doThis:
-      "Look at the command and the account under Evidence. If you recognise the tool and " +
-      "the person, close this. If not, check what else that account did around the same " +
-      "time on the Events page before changing anything.",
+      "Read `command` in Evidence and decide one thing: was that command started by " +
+      "software you run, or by a person? Backup agents, inventory tools, login scripts and " +
+      "installers produce this constantly, and they run under a service or machine account " +
+      "at regular times — that is the ordinary case, and you can close it. " +
+      "It is worth a second look when `account` is a named user who was not working then, " +
+      "when the same command has never run on this machine before, or when it ran outside " +
+      "working hours. In that case copy the host name into the Events page and read the " +
+      "ten minutes either side of the timestamp: a single survey command means little, " +
+      "and a run of them followed by an outbound connection means a great deal. " +
+      "Change nothing until you have looked — pulling the machine off the network destroys " +
+      "the very record that would tell you whether it mattered.",
   },
   "agent.tool.unapproved": {
     summary: "An AI agent tried to call a tool that is not on the approved list.",

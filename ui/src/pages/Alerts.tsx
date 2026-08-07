@@ -104,7 +104,10 @@ export default function Alerts() {
  * to do, and the evidence — in that order. The rule identifier belongs at the
  * bottom, where an engineer can find it and a customer can ignore it.
  */
-function AlertDetail({ alert, explained }: { alert: any; explained: ReturnType<typeof explainRule> }) {
+// Exported because the overview shows the same alerts, and a reader who clicks
+// one there expects it to open there — not to be sent to another page to click
+// it a second time.
+export function AlertDetail({ alert, explained }: { alert: any; explained: ReturnType<typeof explainRule> }) {
   const evidence: [string, string][] = Object.entries(alert.evidence || {})
     .filter(([, value]) => value)
     .map(([key, value]) => [key, String(value)]);

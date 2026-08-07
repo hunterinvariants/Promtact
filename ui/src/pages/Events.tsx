@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Empty, Panel } from "../components";
 
@@ -100,9 +100,8 @@ export default function Events() {
               {visible.slice(0, 200).map((event) => {
                 const open = expanded === event.id;
                 return (
-                  <>
+                  <Fragment key={event.id}>
                     <tr
-                      key={event.id}
                       className="is-clickable"
                       onClick={() => setExpanded(open ? null : event.id)}
                     >
@@ -119,7 +118,7 @@ export default function Events() {
                       <td className="panel-note">{event.kind || "—"}</td>
                     </tr>
                     {open ? (
-                      <tr key={event.id + "-detail"}>
+                      <tr>
                         <td colSpan={4} className="event-detail">
                           <dl>
                             {[
@@ -146,7 +145,7 @@ export default function Events() {
                         </td>
                       </tr>
                     ) : null}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
