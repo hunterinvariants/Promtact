@@ -61,6 +61,7 @@ type App struct {
 	journal                *decisionJournal
 	structuredLogs         bool
 	tracer                 *tracer
+	witness                *witness
 	degradedMu             sync.Mutex
 	degradedSince          time.Time
 	degradedReason         string
@@ -102,6 +103,8 @@ type Options struct {
 	IdentityCacheTTL          time.Duration
 	StructuredLogs            bool
 	TraceEndpoint             string
+	WitnessEndpoint           string
+	WitnessToken              string
 	TraceServiceName          string
 	TraceQueueSize            int
 	DeceptionTokens           []domain.DeceptionToken
@@ -277,6 +280,7 @@ func NewWithOptions(options Options) (*App, error) {
 		journal:               newDecisionJournal(options.DecisionJournalPath, options.DecisionJournalMaxEntries),
 		structuredLogs:        options.StructuredLogs,
 		tracer:                newTracer(options.TraceEndpoint, options.TraceServiceName, nil, options.TraceQueueSize),
+		witness:               newWitness(options.WitnessEndpoint, options.WitnessToken),
 		threatPackPath:        strings.TrimSpace(options.ThreatPackPath),
 		auth:                  authenticator,
 		trustedProxies:        trustedProxies,
@@ -334,6 +338,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/status", a.handleStatus)
 	mux.HandleFunc("/api/openapi.json", a.handleOpenAPI)
 	mux.HandleFunc("/api/session", a.handleSession)
+	mux.HandleFunc("/api/audit/witness", a.handleAuditWitness)
 	mux.HandleFunc("/api/scim/v2/ServiceProviderConfig", a.handleSCIMServiceProviderConfig)
 	mux.HandleFunc("/api/scim/v2/Users", a.handleSCIMUsers)
 	mux.HandleFunc("/api/scim/v2/Users/", a.handleSCIMUser)
@@ -2261,7 +2266,7 @@ func (a *App) recordAudit(r *http.Request, principal auth.Principal, action stri
 		ResourceID:   resourceID,
 		Outcome:      outcome,
 		SourceIP:     a.sourceIP(r),
-		UserAgent:    r.UserAgent(),
+		UserAgent:    requestUserAgent(r),
 		Metadata:     metadata,
 	}
 	_ = a.addAuditForTenant(event, principal.Tenant)
@@ -2787,6 +2792,12 @@ func normalizeReturnTo(value string) string {
 }
 
 func (a *App) sourceIP(r *http.Request) string {
+	// Some audit records have no request behind them: the witness reporting a
+	// divergence, a background reconciler, a scheduled job. Those are exactly
+	// the records that must not be lost to a panic.
+	if r == nil {
+		return ""
+	}
 	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" && a.isTrustedProxy(r.RemoteAddr) {
 		return strings.TrimSpace(strings.Split(forwarded, ",")[0])
 	}

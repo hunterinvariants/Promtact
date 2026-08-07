@@ -94,6 +94,20 @@ func (a *App) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "promtact_trace_spans_dropped_total %d\n", a.tracer.Dropped())
 	}
 
+	if a.witness.enabled() {
+		witnessed, diverged, _ := a.witness.status()
+		divergedValue := 0
+		if diverged {
+			divergedValue = 1
+		}
+		fmt.Fprintln(w, "# HELP promtact_audit_witness_diverged Whether the local audit chain disagrees with the external witness.")
+		fmt.Fprintln(w, "# TYPE promtact_audit_witness_diverged gauge")
+		fmt.Fprintf(w, "promtact_audit_witness_diverged %d\n", divergedValue)
+		fmt.Fprintln(w, "# HELP promtact_audit_witnessed_index Chain index most recently accepted by the external witness.")
+		fmt.Fprintln(w, "# TYPE promtact_audit_witnessed_index gauge")
+		fmt.Fprintf(w, "promtact_audit_witnessed_index %d\n", witnessed.Index)
+	}
+
 	chain := a.store.AuditChain()
 	valid := 0
 	if chain.Valid {

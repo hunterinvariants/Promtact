@@ -13,6 +13,15 @@
 
 export default {
   async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // The witness lives here rather than on the monitored host for the same
+    // reason the alert receiver does, only more so: its whole purpose is to hold
+    // a record the host's operator cannot rewrite.
+    if (url.pathname === "/anchor") {
+      return handleAnchor(request, env, url);
+    }
+
     if (request.method !== "POST") {
       return new Response("POST only", { status: 405 });
     }
@@ -114,4 +123,115 @@ function timingSafeEqual(a, b) {
     diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return diff === 0;
+}
+
+/**
+ * Audit-chain witness.
+ *
+ * The service publishes the head of its tamper-evident audit chain here. The
+ * value of doing so is entirely in the refusals: this endpoint will not accept a
+ * chain that got shorter, and will not accept a different head for an index it
+ * has already recorded. A host operator can rewrite local history and recompute
+ * the local anchor over it — they cannot make this store agree.
+ *
+ * Storage is Cloudflare KV, which is eventually consistent. With a single
+ * publisher on a multi-minute interval that is not a practical concern, but it
+ * does mean this is a witness, not a distributed ledger: two publishers racing
+ * could both be accepted.
+ */
+async function handleAnchor(request, env, url) {
+  const secret = env.ANCHOR_SHARED_SECRET || env.ALERT_SHARED_SECRET;
+  if (!secret) {
+    return new Response("witness not configured", { status: 503 });
+  }
+  if (!env.ANCHORS) {
+    return new Response("witness storage not bound", { status: 503 });
+  }
+  const auth = request.headers.get("Authorization") || "";
+  const presented = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!timingSafeEqual(presented, secret)) {
+    return new Response("unauthorized", { status: 401 });
+  }
+
+  if (request.method === "GET") {
+    // An auditor can ask for the latest witnessed state, or for a specific
+    // index, which is what makes an old claim checkable rather than trusted.
+    const wanted = url.searchParams.get("index");
+    const key = wanted === null ? "latest" : `idx:${Number(wanted)}`;
+    const stored = await env.ANCHORS.get(key, { type: "json" });
+    if (!stored) {
+      return new Response(JSON.stringify({ error: "no anchor recorded" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return json(stored, 200);
+  }
+
+  if (request.method !== "POST") {
+    return new Response("GET or POST", { status: 405 });
+  }
+
+  let submitted;
+  try {
+    submitted = await request.json();
+  } catch {
+    return new Response("invalid json", { status: 400 });
+  }
+
+  const index = Number(submitted.chain_index);
+  const head = String(submitted.head || "");
+  if (!Number.isInteger(index) || index < 0) {
+    return json({ error: "chain_index must be a non-negative integer" }, 400);
+  }
+
+  const latest = await env.ANCHORS.get("latest", { type: "json" });
+
+  // A chain that got shorter is the case a local anchor cannot detect at all:
+  // truncated history re-anchors against itself perfectly well.
+  if (latest && index < latest.chain_index) {
+    return json({
+      error: "the submitted chain is shorter than the witnessed chain",
+      witnessed_index: latest.chain_index,
+      submitted_index: index,
+    }, 409);
+  }
+
+  // The same index with a different head means records were rewritten in place.
+  const existing = await env.ANCHORS.get(`idx:${index}`, { type: "json" });
+  if (existing && existing.head !== head) {
+    return json({
+      error: "this index was already witnessed with a different head",
+      chain_index: index,
+      witnessed_head: existing.head,
+      submitted_head: head,
+    }, 409);
+  }
+
+  const record = {
+    chain_index: index,
+    head,
+    valid: Boolean(submitted.valid),
+    witnessed_at: new Date().toISOString(),
+    reported_at: String(submitted.at || ""),
+  };
+
+  // The per-index record is written first. If the second write fails, the
+  // witness has the stricter of the two states rather than a forgotten index.
+  if (!existing) {
+    await env.ANCHORS.put(`idx:${index}`, JSON.stringify(record));
+  }
+  if (!latest || index >= latest.chain_index) {
+    await env.ANCHORS.put("latest", JSON.stringify(record));
+  }
+
+  console.log(`anchor accepted index=${index} head=${head.slice(0, 12)}`);
+  return json(record, 200);
+}
+
+function json(body, status) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }

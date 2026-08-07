@@ -12,8 +12,18 @@ preview_urls = false
 # pattern = "alerts.example.com/*"
 # custom_domain = true
 
+# The witness store. Create it once and paste the id here:
+#   npx wrangler kv namespace create ANCHORS
+# Without this binding the /anchor endpoint returns 503 and the alert receiver
+# keeps working unchanged.
+[[kv_namespaces]]
+binding = "ANCHORS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
 # Secrets are set with `wrangler secret put`, never committed:
 #   ALERT_SHARED_SECRET   (required) the bearer token the sender presents
+#   ANCHOR_SHARED_SECRET  (optional) separate token for the audit witness;
+#                         falls back to ALERT_SHARED_SECRET when unset
 #   NTFY_TOPIC            (optional) push to a phone via ntfy.sh
 #   DISCORD_WEBHOOK_URL   (optional)
 #   SLACK_WEBHOOK_URL     (optional)

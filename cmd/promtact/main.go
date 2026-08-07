@@ -85,6 +85,9 @@ func main() {
 	validationResultPath := flag.String("validation-result-path", os.Getenv("PROMTACT_VALIDATION_RESULT_PATH"), "path to the detection-validation result JSON served at /api/gateway/validation")
 	validationHistoryPath := flag.String("validation-history-path", os.Getenv("PROMTACT_VALIDATION_HISTORY_PATH"), "path to the detection-validation history JSONL for the dashboard trend")
 	decisionJournalPath := flag.String("decision-journal-path", os.Getenv("PROMTACT_DECISION_JOURNAL_PATH"), "local journal for gateway records that could not be persisted, so enforcement survives a storage outage")
+	witnessEndpoint := flag.String("audit-witness-url", os.Getenv("PROMTACT_AUDIT_WITNESS_URL"), "external witness base URL for the audit chain head (empty disables witnessing)")
+	witnessToken := flag.String("audit-witness-token", os.Getenv("PROMTACT_AUDIT_WITNESS_TOKEN"), "bearer token presented to the audit witness")
+	witnessInterval := flag.Duration("audit-witness-interval", 5*time.Minute, "how often the audit chain head is published to the witness")
 	traceEndpoint := flag.String("trace-endpoint", os.Getenv("PROMTACT_TRACE_ENDPOINT"), "OTLP/HTTP base URL for trace export, e.g. http://collector:4318 (empty disables tracing)")
 	traceServiceName := flag.String("trace-service-name", defaultString(os.Getenv("PROMTACT_TRACE_SERVICE_NAME"), "promtact"), "service.name reported on exported spans")
 	structuredLogs := flag.Bool("structured-logs", parseBoolEnv(os.Getenv("PROMTACT_STRUCTURED_LOGS")), "emit one JSON line per request with a correlation id, for log shipping")
@@ -178,6 +181,8 @@ func main() {
 		DecisionJournalMaxEntries: *decisionJournalMax,
 		IdentityCacheTTL:          *identityCacheTTL,
 		StructuredLogs:            *structuredLogs,
+		WitnessEndpoint:           *witnessEndpoint,
+		WitnessToken:              *witnessToken,
 		TraceEndpoint:             strings.TrimSpace(*traceEndpoint),
 		TraceServiceName:          strings.TrimSpace(*traceServiceName),
 		CorrelationWindow:         window,
@@ -270,6 +275,7 @@ func main() {
 	defer stopReconciler()
 	app.StartJournalReconciler(reconcileCtx, time.Minute)
 	app.StartTraceExporter(reconcileCtx, 5*time.Second)
+	app.StartAuditWitness(reconcileCtx, *witnessInterval)
 
 	reload := make(chan os.Signal, 1)
 	signal.Notify(reload, syscall.SIGHUP)

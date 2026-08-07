@@ -384,6 +384,12 @@ func RequiredRoles(method string, path string) []string {
 	if strings.HasPrefix(path, "/api/auth/mfa") {
 		return []string{RoleViewer, RoleIngestor, RoleAnalyst, RoleOperator}
 	}
+	// The witness status says how far the evidence trail is independently
+	// corroborated. That is a statement about the operator, not about a tenant's
+	// data, so it does not follow the audit-read rule below.
+	if path == "/api/audit/witness" {
+		return []string{RoleAdmin}
+	}
 	if path == "/api/audit" {
 		return []string{RoleAnalyst, RoleOperator}
 	}

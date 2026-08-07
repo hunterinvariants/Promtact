@@ -76,6 +76,22 @@ credible for this product in particular — a control plane that gates agent
 access to tools has an obvious argument for gating its own operators the same
 way. It is on the roadmap rather than in the build.
 
+**What has been built against it.** The audit chain head is published to an
+external witness — a Cloudflare Worker with its own storage, in a different
+trust domain from the host. The witness refuses a chain that got shorter and
+refuses a different head for an index it already recorded. An operator can still
+rewrite local history and recompute the local anchor over it; what they cannot
+do is make the witness agree. The disagreement is reported at
+`GET /api/audit/witness`, exposed as `promtact_audit_witness_diverged`, and
+recorded in the chain itself.
+
+The divergence flag is deliberately sticky: it is cleared only by a verification
+that agrees, never by the next successful publish. Otherwise rewriting history
+and waiting one interval would silence the alarm.
+
+This closes the *erasure* half of the problem and not the *reading* half. Both
+are stated because a reader will work out the difference anyway.
+
 **Compensating controls today.**
 
 - The audit chain is hash-linked, so records cannot be edited or removed after
