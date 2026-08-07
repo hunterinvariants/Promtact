@@ -1131,28 +1131,65 @@ func (a *App) handleGatewayProxy(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadGateway, errors.New("upstream response too large"))
 			return
 		}
-		action := a.gatewayActionFromDecision(req.ToolCall, decision, tenant, "not_required", "executed")
+		// The response is inspected before the agent sees it. Gating only the
+		// request leaves indirect prompt injection untouched: the call that
+		// fetches a poisoned page is itself unremarkable, and the instructions
+		// ride back in the answer.
+		inspection := a.policy.InspectToolResult(req.ToolCall, string(body))
+		responseBody := string(body)
+		if inspection.Withheld() {
+			// Returning content judged hostile would make the inspection
+			// decorative. The agent gets the verdict instead.
+			responseBody = ""
+		}
+
+		status := "executed"
+		if inspection.Withheld() {
+			status = "withheld"
+		}
+		action := a.gatewayActionFromDecision(req.ToolCall, decision, tenant, "not_required", status)
 		action.Type = "gateway_proxy"
 		action.Metadata["proxy_upstream_url"] = req.UpstreamURL
 		action.Metadata["proxy_upstream_status"] = fmt.Sprintf("%d", upstreamResp.StatusCode)
 		action.Metadata["proxy_content_type"] = upstreamResp.Header.Get("Content-Type")
+		if len(inspection.Findings) > 0 {
+			action.Metadata["result_findings"] = strings.Join(inspection.Findings, ",")
+			action.Metadata["result_reason"] = inspection.Reason
+		}
+		if len(inspection.Taint) > 0 {
+			action.Metadata["result_taint"] = strings.Join(inspection.Taint, ",")
+		}
 		a.prepareAction(&action, tenant)
 		a.persistActions(tenant, []domain.ResponseAction{action})
 		a.recordAudit(r, principal, "gateway.proxy", "tool_call", decision.RequestID, "executed", map[string]string{
-			"tool":        decision.ToolName,
-			"asset_id":    req.ToolCall.AssetID,
-			"hostname":    req.ToolCall.Hostname,
-			"risk":        string(decision.Risk),
-			"reason":      decision.Reason,
-			"destination": req.UpstreamURL,
-			"action_id":   decisionActionID(&action),
-			"status":      fmt.Sprintf("%d", upstreamResp.StatusCode),
+			"tool":           decision.ToolName,
+			"asset_id":       req.ToolCall.AssetID,
+			"hostname":       req.ToolCall.Hostname,
+			"risk":           string(decision.Risk),
+			"reason":         decision.Reason,
+			"destination":    req.UpstreamURL,
+			"action_id":      decisionActionID(&action),
+			"status":         fmt.Sprintf("%d", upstreamResp.StatusCode),
+			"result_verdict": string(inspection.Verdict),
+			"result_reason":  inspection.Reason,
 		})
 		writeJSON(w, upstreamResp.StatusCode, map[string]any{
 			"decision":        decision,
 			"upstream_status": upstreamResp.StatusCode,
-			"upstream_body":   string(body),
+			"upstream_body":   responseBody,
 			"action":          action,
+			// The caller is told what was done to the response and why, so an
+			// agent framework can surface a withheld result rather than treat
+			// it as an empty page.
+			"result_inspection": map[string]any{
+				"verdict":  inspection.Verdict,
+				"reason":   inspection.Reason,
+				"risk":     inspection.Risk,
+				"findings": inspection.Findings,
+				"taint":    inspection.Taint,
+				"evidence": inspection.Evidence,
+				"withheld": inspection.Withheld(),
+			},
 		})
 	case domain.GatewayRequireApproval:
 		action := a.gatewayActionFromDecision(req.ToolCall, decision, tenant, "required", "")
