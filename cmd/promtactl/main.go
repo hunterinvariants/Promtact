@@ -807,7 +807,8 @@ func postEvents(client *http.Client, baseURL string, token string, events []doma
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage:")
 	fmt.Fprintln(os.Stderr, "  promtactl gateway call --tool NAME [--command ...] [--arguments ...] [--destination ...]")
-	fmt.Fprintln(os.Stderr, "  promtactl gateway demo   # four tool calls through the gateway, with the verdicts explained")
+	fmt.Fprintln(os.Stderr, "  promtactl gateway demo   # four tool calls through the gateway, with the verdicts explained
+  promtactl gateway chain-demo  # the two-step injection chain, end to end (run on the gateway host)")
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "  promtactl tenant create   --name acme --display \"Acme GmbH\"")
 	fmt.Fprintln(os.Stderr, "  promtactl tenant add-agent --tenant acme")

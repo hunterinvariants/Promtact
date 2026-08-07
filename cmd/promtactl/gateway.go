@@ -32,6 +32,8 @@ func gatewayCommand(args []string) error {
 		return gatewayCall(args[1:])
 	case "demo":
 		return gatewayDemo(args[1:])
+	case "chain-demo":
+		return gatewayChainDemo(args[1:])
 	default:
 		gatewayUsage()
 		return fmt.Errorf("unknown gateway subcommand %q", args[0])
