@@ -16,39 +16,52 @@ Everything here runs against the Promtact deployment with an admin credential.
 
 ### A1. Create the tenant
 
+**Read the response.** Creating a tenant also creates its first administrator —
+named `<tenant>-admin` unless you pass `admin_name` — and returns that account's
+API key. That key is the customer's console login, and it is shown exactly once.
+
 ```bash
-curl -s -X POST "$URL/api/admin/tenants" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"tenant":"acme","display_name":"Acme GmbH"}'
+curl -s -X POST "$URL/api/admin/tenants"   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json"   -d '{"tenant":"acme","display_name":"Acme GmbH"}'
 ```
+
+Discarding this output leaves an account whose key nobody knows, and creating it
+again fails on the unique name. Recovering means issuing a fresh key for the
+existing user — extra work for no reason.
 
 The tenant name becomes part of every record and cannot be changed afterwards.
-Use something short and stable — a company slug, not a project name.
+Use something short and stable: a company slug, not a project name.
 
-### A2. Create the two accounts
+### A2. Create the agent account
 
-A customer needs two, and they should not be the same one.
+The tenant already has its person. It still needs a machine identity, and the
+two must not be the same one.
 
 ```bash
-# The agent: may submit telemetry and nothing else.
-curl -s -X POST "$URL/api/admin/tenants/acme/users" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"name":"acme-agent","roles":["ingestor"]}'
-
-# The person: reads alerts and works the approval queue.
-curl -s -X POST "$URL/api/admin/tenants/acme/users" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"name":"acme-admin","roles":["operator"]}'
+curl -s -X POST "$URL/api/admin/tenants/acme/users"   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json"   -d '{"name":"acme-agent","roles":["ingestor"]}'
 ```
 
-**Each response carries an API key in clear text, once.** It is stored only as a
-hash and cannot be recovered. If it is lost, issue a new one and revoke the old.
+**This response also carries an API key in clear text, once.** Keys are stored
+only as hashes and cannot be recovered.
 
-Why two accounts: the agent's key sits on an endpoint, unattended, where a
+Why a second account: the agent's key sits on an endpoint, unattended, where a
 credential should reach exactly as far as its job. An `ingestor` cannot read
 another machine's alerts, cannot approve anything, and cannot provision. If that
-endpoint is compromised, the blast radius is "someone can submit telemetry",
-not "someone owns the tenant".
+endpoint is compromised, the blast radius is "someone can submit telemetry", not
+"someone owns the tenant".
+
+Account names are unique across the whole deployment rather than per tenant:
+login resolves a name to exactly one account, and two `admin` users in different
+tenants would be ambiguous. Prefix them with the tenant, as `acme-admin` does.
+
+### A2b. If a key is lost
+
+Issue a replacement for the existing user rather than recreating it:
+
+```bash
+curl -s "$URL/api/admin/tenants/acme/users" -H "Authorization: Bearer $ADMIN_TOKEN"
+
+curl -s -X POST "$URL/api/admin/tenants/acme/keys"   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json"   -d '{"user_id":"usr-...","name":"replacement"}'
+```
 
 ### A3. Hand over
 
