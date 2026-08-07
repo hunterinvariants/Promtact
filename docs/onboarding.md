@@ -94,15 +94,41 @@ The Promtact agent reads **one Windows event log** on this machine and forwards
 its records to your Promtact tenant. It reads nothing else: no files, no
 keystrokes, no screen, no network capture, no browsing history.
 
-By default it reads the **System** log, which records service starts, driver
-loads and shutdowns. If you were asked to use `Security` instead, that log also
-records sign-ins and privilege use — more useful, and more sensitive. You choose
-which.
+Which log you choose decides whether this is useful, so it is worth one minute.
+
+The **System** log records service starts, driver loads and shutdowns. It is
+the least sensitive option and it will not detect anything: it contains no
+record of which programs ran, so a finding raised from it can only quote a line
+of Windows' own prose back at you. Choose it if you want to confirm the plumbing
+works and nothing more.
+
+The **Security** log records sign-ins, privilege use and — once switched on —
+which program was started, by which account, with which command line. This is
+the option that produces a finding somebody can act on.
+
+It is also the option that carries a real cost, and you should decide with your
+eyes open: from the moment process auditing is enabled, **every command line on
+this machine is written to the Security log**, including any that carries a
+password or a token as an argument. That log then leaves the machine. Weigh that
+against the alternative, which is monitoring that cannot tell you what happened.
+
+To enable it, in an elevated PowerShell:
+
+```powershell
+auditpol /set /subcategory:"Process Creation" /success:enable
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit" `
+  /v ProcessCreationIncludeCmdLine_Enabled /t REG_DWORD /d 1 /f
+```
+
+The second line is the one that adds the command line. Without it Windows
+records that `cmd.exe` started and not what it was asked to do, which is the
+difference between a log and evidence.
 
 What is transmitted: the event's timestamp, the machine name, the account name
-in the record, the process or service it concerns, and the event's own text.
-That text is written by Windows, not by us, and we do not filter it — assume it
-can contain a user name or a file path.
+in the record, the process it concerns, its command line where the record
+carries one, and the event's own text. That text is written by Windows, not by
+us, and we do not filter it — assume it can contain a user name, a file path, or
+anything that was typed on a command line.
 
 Data is kept for **30 days** and then deleted. Details in
 [data-protection.md](data-protection.md).
@@ -145,7 +171,7 @@ Administrator** and run:
 
 ```powershell
 & "C:\Program Files\Promtact\promtactl.exe" agent `
-  --source windows-eventlog --log-name System `
+  --source windows-eventlog --log-name Security `
   --url https://YOUR-PROMTACT-ADDRESS `
   --token YOUR-AGENT-KEY --once
 ```
@@ -170,7 +196,7 @@ So it keeps running after a reboot and after you log out:
 
 ```powershell
 cd "C:\Program Files\Promtact"
-.\install-agent-service.ps1 -Url https://YOUR-PROMTACT-ADDRESS -LogName System
+.\install-agent.ps1 -Url https://YOUR-PROMTACT-ADDRESS -LogName Security
 ```
 
 It asks for the agent key and does not echo it. The key is written to
@@ -181,8 +207,13 @@ administrator could read it out of the service configuration.
 Check it is running:
 
 ```powershell
-Get-Service PromtactAgent
+Get-ScheduledTask -TaskName PromtactAgent
 ```
+
+It is a scheduled task rather than a Windows service, deliberately: a service
+has to speak the Service Control Manager protocol and report itself started
+within thirty seconds, and a collector that simply runs does not. Registered as
+a service it would be killed at startup with a message that explains nothing.
 
 ### ☐ 7. Prove it survives a restart
 
@@ -212,7 +243,8 @@ until the retention window expires.
 | `unauthorized` or 401 | The key is wrong, expired, or has a trailing space |
 | Connection timed out | Outbound HTTPS to the Promtact address is blocked |
 | Task shows Ready, never Running | Run the same arguments by hand; the installer prints them |
-| Console shows nothing after 10 minutes | The service is running but the log is empty — try `-LogName Security` |
+| Events arrive, but no `command` or `account` on any of them | Process auditing is off, or the command line switch was not set. Both steps above are needed |
+| Console shows nothing after 10 minutes | The task is running but the chosen log is quiet. `System` is often idle for long stretches |
 
 Security problems, including anything about this agent: see
 [SECURITY.md](../SECURITY.md).
