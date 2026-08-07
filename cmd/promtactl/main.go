@@ -86,6 +86,11 @@ func main() {
 		if err := mcpDemoCommand(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
+	case "tenant":
+		if err := tenantCommand(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	case "breakglass":
 		runBreakglass(os.Args[2:])
 	case "bench":
