@@ -83,6 +83,36 @@ Scope and limits, stated deliberately:
 
 Operational signals: `promtact_degraded_mode`, `promtact_decision_journal_depth`, `promtact_decision_journal_dropped_total`.
 
+## 7. The operator cannot erase the evidence trail unnoticed
+
+**Claim.** The audit chain is hash-linked and its head is published to a witness in a different trust domain from the host. The witness refuses a chain that got shorter and refuses a different head for an index it already recorded. An operator holding root can rewrite local history and recompute the local anchor over it; they cannot make the witness agree, and the resulting disagreement is reported, exported as a metric, and itself written into the chain.
+
+```powershell
+go test ./internal/server -run 'Test(Anchor|Witness|Truncated|Rewritten|Divergence)' -count=1
+```
+
+Against a live deployment, the property is the refusals rather than the storage. Both probes below are safe: the witness rejects them, so nothing is overwritten.
+
+```bash
+# A shortened chain is refused, naming the index it already holds.
+curl -s -X POST "$WITNESS/anchor" -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json" -d '{"chain_index":5,"head":"deadbeef","valid":true}'
+
+# The same index with a different head is refused, naming both heads.
+curl -s -X POST "$WITNESS/anchor" -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json" -d '{"chain_index":62,"head":"0000...","valid":true}'
+```
+
+Why this matters: a locally anchored chain is only as trustworthy as the host. Truncation in particular is invisible to a local anchor, because a shortened history re-anchors against itself perfectly well. The witness is what makes the length itself a fact someone else holds.
+
+Scope and limits, stated deliberately:
+
+- **This closes erasure, not reading.** An operator with host access can still read customer data without producing an audit record. Nothing on a single host can prevent that, and the claim is not made. See [access-control.md](access-control.md).
+- **The divergence flag is sticky.** It is cleared only by a verification that agrees, never by the next successful publish — otherwise rewriting history and waiting one interval would silence the alarm.
+- **The witness is not a dependency of enforcement.** An unreachable witness neither fails a request nor stops the service; it degrades the evidence, not the control.
+- **One publisher is assumed.** The witness store is eventually consistent, so two publishers racing could both be accepted. It is a witness, not a distributed ledger.
+- **Witnessing is off unless configured.** Without `--audit-witness-url`, the chain is anchored locally only, which does not protect against an operator.
+
+Operational signals: `promtact_audit_witness_diverged`, `promtact_audit_witnessed_index`, and `GET /api/audit/witness`.
+
 ## Claims intentionally not made
 
-Promtact does **not** claim: admission of agents never seen before while the directory is down (those fail closed by design); cross-host durability of the decision journal; or attestation of a running tool's actual code, since provenance verifies a claim the client presents rather than measuring the binary.
+Promtact does **not** claim: admission of agents never seen before while the directory is down (those fail closed by design); cross-host durability of the decision journal; attestation of a running tool's actual code, since provenance verifies a claim the client presents rather than measuring the binary; or prevention of an operator with host access reading customer data, which no single-host design can offer.
