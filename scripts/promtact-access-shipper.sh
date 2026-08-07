@@ -65,8 +65,10 @@ submit() {
     -d "$1" || echo "access-shipper: submission failed" >&2
 }
 
-# A heartbeat on its own interval, so a quiet database still proves the shipper
-# is alive.
+# One heartbeat immediately, then on its own interval. Waiting the full interval
+# for the first would leave a broken configuration looking healthy for five
+# minutes after every start — long enough to walk away believing it works.
+submit '{"heartbeat":true,"sessions":[]}'
 (
   while true; do
     sleep "$HEARTBEAT_SECONDS"

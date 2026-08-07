@@ -30,7 +30,11 @@ ProtectClock=true
 ProtectHostname=true
 ProtectProc=invisible
 ProcSubset=pid
-RestrictAddressFamilies=AF_INET AF_INET6
+# AF_NETLINK is needed even to reach 127.0.0.1: glibc's resolver enumerates the
+# available address families through netlink before connecting, so without it
+# curl fails with "couldn't connect to server" while the server is fine — a
+# failure that looks like the wrong thing entirely.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_NETLINK
 RestrictNamespaces=true
 RestrictSUIDSGID=true
 RestrictRealtime=true
