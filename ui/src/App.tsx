@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, isPlatformAdmin, Session } from "./api";
 import Alerts from "./pages/Alerts";
+import Approvals from "./pages/Approvals";
 import Assets from "./pages/Assets";
 import Detections from "./pages/Detections";
 import Events from "./pages/Events";
@@ -9,7 +10,16 @@ import Overview from "./pages/Overview";
 import Settings from "./pages/Settings";
 import Tenants from "./pages/Tenants";
 
-type PageKey = "overview" | "health" | "alerts" | "events" | "assets" | "detections" | "tenants" | "settings";
+type PageKey =
+  | "overview"
+  | "health"
+  | "approvals"
+  | "alerts"
+  | "events"
+  | "assets"
+  | "detections"
+  | "tenants"
+  | "settings";
 
 const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; title: string; subtitle: string }[] = [
   { key: "overview", label: "Overview", icon: "◎", title: "Overview", subtitle: "Current posture across your estate" },
@@ -19,6 +29,16 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; t
     icon: "❍",
     title: "System health",
     subtitle: "Whether every part of the deployment is doing its job",
+  },
+  {
+    // Second in the list, ahead of alerts, because this is the only page where
+    // something is waiting on a person. An alert can be read tomorrow; a held
+    // tool call has an agent stopped mid-task behind it.
+    key: "approvals",
+    label: "Approvals",
+    icon: "⧗",
+    title: "Approvals",
+    subtitle: "Tool calls the gateway is holding for a person",
   },
   { key: "alerts", label: "Alerts", icon: "⚑", title: "Alerts", subtitle: "Correlated detections awaiting triage" },
   {
@@ -194,6 +214,8 @@ export default function App() {
     switch (active.key) {
       case "health":
         return <Health onNavigate={setPage} />;
+      case "approvals":
+        return <Approvals />;
       case "alerts":
         return <Alerts />;
       case "events":

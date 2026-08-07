@@ -1036,3 +1036,36 @@ tr.is-clickable:hover td { cursor: pointer; }
 @media (max-width: 640px) {
   .detail-body dl > div, .event-detail dl > div { grid-template-columns: 1fr; gap: 0; }
 }
+
+/* ---------- Approvals ---------- */
+
+/* The held-call detail explains a chain, so it needs prose and lists rather
+   than the definition grid the other detail panes use. */
+.event-detail h4 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.event-detail h4:first-child {
+  margin-top: 0;
+}
+
+.event-detail p {
+  margin: 0 0 6px;
+  max-width: 70ch;
+  line-height: 1.55;
+}
+
+.event-detail ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  max-width: 70ch;
+  line-height: 1.55;
+}
+
+.event-detail li {
+  margin-bottom: 4px;
+}

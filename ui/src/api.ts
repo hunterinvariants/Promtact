@@ -59,6 +59,11 @@ export const api = {
   assets: () => request<any[]>("/api/assets"),
   events: () => request<any[]>("/api/events"),
   actions: () => request<any[]>("/api/responses"),
+  approveAction: (actionID: string, approvedBy: string) =>
+    request<any>("/api/responses/approve", {
+      method: "POST",
+      body: JSON.stringify({ action_id: actionID, approved_by: approvedBy }),
+    }),
   validation: () => request<any>("/api/gateway/validation"),
 
   // Platform provisioning (admin on the default tenant only).
