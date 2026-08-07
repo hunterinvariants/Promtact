@@ -175,6 +175,9 @@ go test ./internal/store -run TestPostgresPersistenceIntegration -count=1
 | [Design decisions](docs/design-decisions.md) | Why it is built this way, including what was rejected |
 | [Technical claims](docs/technical-claims.md) | Claims with the commands that check them |
 | [Threat model](docs/threat-model.md) | What it defends against, and what it does not |
+| [Data protection](docs/data-protection.md) | What is processed, kept how long, and reachable by whom |
+| [Access control](docs/access-control.md) | Who can reach customer data, and what is recorded |
+| [Incident response](docs/incident-response.md) | Severity, notification deadlines, recovery |
 | [Production readiness](docs/production-readiness.md) | The contract a deployment is held to |
 
 ## License
