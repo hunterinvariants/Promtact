@@ -113,6 +113,42 @@ Scope and limits, stated deliberately:
 
 Operational signals: `promtact_audit_witness_diverged`, `promtact_audit_witnessed_index`, and `GET /api/audit/witness`.
 
+## 8. Operator access to the database is announced, observed, and reconciled
+
+**Claim.** Direct database access by the operator is announced before it is taken, observed independently of the operator, and the two are reconciled. An announcement is written to the audit chain and carried to the external witness. Observation comes from Postgres's own connection log, read by a shipper whose credential can do nothing else. A session with no announcement covering it produces an audit record and an alert. The findings are derived from those records, so restarting the service does not reset what an auditor sees.
+
+```powershell
+go test ./internal/server -run 'Test(Breakglass|Covers|Unannounced|Announced|ServicesOwn|Shipper|Reporter|FindingsSurvive)' -count=1
+```
+
+Against a live deployment the property is that it fires in one direction and stays quiet in the other. A control that only does the first is an alarm nobody keeps.
+
+```bash
+# Connect without announcing: both counters rise.
+psql "$DSN" -c 'SELECT 1'
+curl -s "$URL/api/access-log" -H "Authorization: Bearer $REPORTER_TOKEN"
+
+# Announce, then connect: observed rises, unannounced does not.
+promtactl breakglass --reason "..." --minutes 5
+psql "$DSN" -c 'SELECT 1'
+curl -s "$URL/api/access-log" -H "Authorization: Bearer $REPORTER_TOKEN"
+```
+
+Measured on the hosted deployment: 5/3 → 7/5 unannounced (+2 observed, +2 unannounced, one connect and one disconnect), then 7/5 → 9/5 announced (+2 observed, +0 unannounced).
+
+Why this matters: an audit trail that records what customers do and not what the provider does answers the wrong half of the diligence question. This is the half a buyer asks about and almost nobody at this scale can demonstrate.
+
+Scope and limits, stated deliberately:
+
+- **This does not prevent an operator from reading data.** On a single host with one root user nothing can. It makes reading attributable and erasure detectable, and the claim is bounded to that.
+- **Announcing is voluntary.** The pair is what closes it: skipping the announcement leaves the session observed and unreconciled, which is the finding.
+- **The shipper runs on the host and can be stopped.** Silence after it has reported is surfaced as `shipper_silent`; the gap between stopping it and noticing it is real.
+- **Open announcements are held in memory.** A restart clears them, so sessions during that window read as unannounced — noise rather than silence, which is the right direction. The findings themselves are durable.
+- **The reporter credential can only report.** It reaches neither provisioning, nor break-glass, nor the witness, nor the gateway; the test enumerates what it must not touch.
+- **A two-minute grace applies either side of a window,** because the log reports whole seconds while the window opens with nanoseconds. Every second of it excuses a real session, so it is capped by a test.
+
+Operational signals: `GET /api/access-log`, audit actions `operator.breakglass.opened`, `operator.breakglass.closed` and `operator.database.session`.
+
 ## Claims intentionally not made
 
 Promtact does **not** claim: admission of agents never seen before while the directory is down (those fail closed by design); cross-host durability of the decision journal; attestation of a running tool's actual code, since provenance verifies a claim the client presents rather than measuring the binary; or prevention of an operator with host access reading customer data, which no single-host design can offer.
