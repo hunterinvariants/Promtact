@@ -13,6 +13,11 @@ type Component = {
   state: "ok" | "warn" | "bad" | "off";
   headline: string;
   detail: string;
+  // What a card reveals when opened: the numbers you would otherwise fetch by
+  // hand. Several components have no page of their own, and inventing a link
+  // that goes nowhere is worse than none — so the detail comes to the card.
+  facts: [string, string][];
+  goTo?: { page: string; label: string };
 };
 
 const LABELS: Record<Component["state"], string> = {
@@ -22,7 +27,7 @@ const LABELS: Record<Component["state"], string> = {
   off: "Not configured",
 };
 
-export default function Health() {
+export default function Health({ onNavigate }: { onNavigate?: (page: any) => void }) {
   const [status, setStatus] = useState<any>(null);
   const [validation, setValidation] = useState<any>(null);
   const [error, setError] = useState("");
@@ -85,15 +90,7 @@ export default function Health() {
 
       <div className="health-grid">
         {components.map((component) => (
-          <article key={component.name} className={`health-card state-${component.state}`}>
-            <header>
-              <span className="health-dot" aria-hidden="true" />
-              <h3>{component.name}</h3>
-              <span className="health-state">{LABELS[component.state]}</span>
-            </header>
-            <p className="health-headline">{component.headline}</p>
-            <p className="health-detail">{component.detail}</p>
-          </article>
+          <HealthCard key={component.name} component={component} onNavigate={onNavigate} />
         ))}
       </div>
 
@@ -102,6 +99,51 @@ export default function Health() {
         whether it is reachable from the internet is checked separately, from outside.
       </p>
     </>
+  );
+}
+
+function HealthCard({ component, onNavigate }: {
+  component: Component; onNavigate?: (page: any) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = `health-${component.name.replace(/\s+/g, "-").toLowerCase()}`;
+
+  return (
+    <article className={`health-card state-${component.state} ${open ? "is-open" : ""}`}>
+      <button
+        className="health-card-toggle"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="health-dot" aria-hidden="true" />
+        <span className="health-card-title">
+          <span className="health-name">{component.name}</span>
+          <span className="health-headline">{component.headline}</span>
+          <span className="health-detail">{component.detail}</span>
+        </span>
+        <span className="health-state">{LABELS[component.state]}</span>
+        <span className="health-chevron" aria-hidden="true">{open ? "−" : "+"}</span>
+      </button>
+
+      {open ? (
+        <div className="health-facts" id={id}>
+          <dl>
+            {component.facts.map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {component.goTo && onNavigate ? (
+            <button className="health-go" onClick={() => onNavigate(component.goTo!.page)}>
+              {component.goTo.label} →
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -120,6 +162,14 @@ function buildComponents(status: any, validation: any): Component[] {
     detail: a?.degraded_mode
       ? `${(a.journal_depth ?? 0).toLocaleString()} decisions held in the local journal`
       : `${(status?.gateway_limit ?? 0).toLocaleString()} concurrent decisions permitted`,
+    facts: [
+      ["Decisions in flight", `${status?.gateway_inflight ?? 0} of ${status?.gateway_limit ?? 0}`],
+      ["Rejected by backpressure", num(status?.gateway_rejected)],
+      ["Decision latency, p99", status?.gateway_p99_millis != null ? `${status.gateway_p99_millis} ms` : "—"],
+      ["Journal depth", num(a?.journal_depth)],
+      ["Instance", status?.instance_name || "—"],
+    ],
+    goTo: { page: "overview", label: "See the decision funnel" },
   });
 
   list.push({
@@ -129,6 +179,12 @@ function buildComponents(status: any, validation: any): Component[] {
     detail: status?.last_storage_error
       ? String(status.last_storage_error)
       : `schema version ${status?.schema_version ?? "—"}`,
+    facts: [
+      ["Mode", status?.storage_mode || "—"],
+      ["Schema version", String(status?.schema_version ?? "—")],
+      ["Tenant isolation", status?.tenant_isolation || "—"],
+      ["Last write error", status?.last_storage_error || "none"],
+    ],
   });
 
   list.push({
@@ -136,6 +192,11 @@ function buildComponents(status: any, validation: any): Component[] {
     state: !a ? "off" : a.audit_chain_valid ? "ok" : "bad",
     headline: !a ? "Not visible to this account" : a.audit_chain_valid ? "Valid" : "Broken",
     detail: a ? `${a.audit_chain_index.toLocaleString()} records linked` : "platform operator only",
+    facts: [
+      ["Records linked", num(a?.audit_chain_index)],
+      ["Head", a?.audit_chain_head ? String(a.audit_chain_head).slice(0, 24) + "…" : "—"],
+      ["Validates", a?.audit_chain_valid ? "yes" : "no"],
+    ],
   });
 
   list.push({
@@ -152,6 +213,12 @@ function buildComponents(status: any, validation: any): Component[] {
       a?.witness_configured
         ? `witnessed at index ${a.witness_index.toLocaleString()}`
         : "history is anchored locally only, which does not protect against an operator",
+    facts: [
+      ["Witnessed index", a?.witness_configured ? num(a.witness_index) : "—"],
+      ["Local index", num(a?.audit_chain_index)],
+      ["Agreement", !a?.witness_configured ? "no witness" : a.witness_diverged ? "diverged" : "agrees"],
+      ["Protects against", "history being rewritten or truncated by someone with host access"],
+    ],
   });
 
   list.push({
@@ -167,6 +234,12 @@ function buildComponents(status: any, validation: any): Component[] {
     detail: a?.shipper_silent
       ? "database sessions are no longer being observed"
       : "reconciled against break-glass windows",
+    facts: [
+      ["Unannounced sessions", num(a?.unannounced_sessions)],
+      ["Reporter last seen", a?.shipper_last_seen ? new Date(a.shipper_last_seen).toLocaleString() : "never"],
+      ["Reporting", a?.shipper_silent ? "silent" : "active"],
+      ["Announce access with", "promtactl breakglass --reason \"…\""],
+    ],
   });
 
   if (validation) {
@@ -181,6 +254,13 @@ function buildComponents(status: any, validation: any): Component[] {
         (validation.missed ?? 0) > 0 || (validation.false_positives ?? 0) > 0
           ? `${validation.missed ?? 0} missed, ${validation.false_positives ?? 0} false positives`
           : validation.suite_version || "benign ATT&CK emulation suite",
+      facts: [
+        ["Techniques held", `${passed} of ${total}`],
+        ["Missed", num(validation.missed)],
+        ["False positives", num(validation.false_positives)],
+        ["Suite", validation.suite_version || "—"],
+      ],
+      goTo: { page: "detections", label: "See technique coverage" },
     });
   }
 
@@ -191,9 +271,18 @@ function buildComponents(status: any, validation: any): Component[] {
     detail: status?.last_export_error
       ? String(status.last_export_error)
       : "webhook and connectors reporting cleanly",
+    facts: [
+      ["Last export error", status?.last_export_error || "none"],
+      ["Public URL", status?.public_url || "—"],
+    ],
+    goTo: { page: "alerts", label: "See open alerts" },
   });
 
   return list;
+}
+
+function num(value: any): string {
+  return typeof value === "number" ? value.toLocaleString() : "—";
 }
 
 function formatUptime(seconds: number): string {

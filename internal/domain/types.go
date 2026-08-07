@@ -240,15 +240,17 @@ type Assurance struct {
 	DecisionsDenied  int `json:"decisions_denied"`
 	DecisionsTotal   int `json:"decisions_total"`
 
-	AuditChainValid bool `json:"audit_chain_valid"`
-	AuditChainIndex int  `json:"audit_chain_index"`
+	AuditChainValid bool   `json:"audit_chain_valid"`
+	AuditChainIndex int    `json:"audit_chain_index"`
+	AuditChainHead  string `json:"audit_chain_head,omitempty"`
 
 	WitnessConfigured bool `json:"witness_configured"`
 	WitnessIndex      int  `json:"witness_index"`
 	WitnessDiverged   bool `json:"witness_diverged"`
 
-	DegradedMode        bool `json:"degraded_mode"`
-	JournalDepth        int  `json:"journal_depth"`
-	UnannouncedSessions int  `json:"unannounced_sessions"`
-	ShipperSilent       bool `json:"shipper_silent"`
+	DegradedMode        bool       `json:"degraded_mode"`
+	JournalDepth        int        `json:"journal_depth"`
+	UnannouncedSessions int        `json:"unannounced_sessions"`
+	ShipperSilent       bool       `json:"shipper_silent"`
+	ShipperLastSeen     *time.Time `json:"shipper_last_seen,omitempty"`
 }

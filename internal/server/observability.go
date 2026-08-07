@@ -152,11 +152,15 @@ func (a *App) assuranceFor(principal auth.Principal) *domain.Assurance {
 		DecisionsTotal:   allowed + gated + denied,
 		AuditChainValid:  chain.Valid,
 		AuditChainIndex:  chain.Linked,
+		AuditChainHead:   chain.Head,
 		DegradedMode:     degraded,
 		JournalDepth:     a.journal.Depth(),
 
 		UnannouncedSessions: unannounced,
 		ShipperSilent:       a.accessLogSilent(),
+	}
+	if last := a.accessLog.heartbeat(); !last.IsZero() {
+		assurance.ShipperLastSeen = &last
 	}
 
 	if a.witness.enabled() {

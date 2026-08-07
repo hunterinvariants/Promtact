@@ -185,7 +185,7 @@ export default function App() {
   const renderPage = () => {
     switch (active.key) {
       case "health":
-        return <Health />;
+        return <Health onNavigate={setPage} />;
       case "alerts":
         return <Alerts />;
       case "assets":
