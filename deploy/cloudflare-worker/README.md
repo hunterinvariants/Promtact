@@ -59,3 +59,28 @@ The shared secret is required: an unauthenticated endpoint that pages a human is
 a denial-of-service target. It is compared in constant time. Delivery failures
 are logged rather than returned, so a dead downstream cannot make the sender
 believe the alert was rejected and retry it indefinitely.
+
+## Availability monitoring
+
+The Worker also checks that the deployment answers from the internet, on a
+five-minute schedule. This is not redundant with the checks on the host: a
+service bound to loopback answers happily whether or not anything can reach it,
+and this deployment once spent fifteen hours unreachable while every local probe
+reported health.
+
+It pages after **two** consecutive failures, not one — a single edge hiccup is
+not an outage, and an alarm that cries wolf gets muted. Recovery is announced
+too, so an outage has a visible end rather than trailing off.
+
+Configure the target in `wrangler.toml`:
+
+```toml
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+MONITOR_URL = "https://app.promtact.com/"
+```
+
+State lives in the same KV namespace as the audit witness, so the alert fires
+once per outage rather than every five minutes.

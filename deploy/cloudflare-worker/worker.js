@@ -47,33 +47,116 @@ export default {
 
     const text = formatAlert(alert);
     console.log(text);
-
-    // Fan out to whatever is configured. Failures are logged, never propagated:
-    // a dead downstream must not make the sender think the alert was rejected
-    // and retry it forever.
-    const deliveries = [];
-    if (env.NTFY_TOPIC) {
-      deliveries.push(
-        post(`https://ntfy.sh/${env.NTFY_TOPIC}`, text, {
-          Title: "Promtact detection regression",
-          Priority: "high",
-          Tags: "rotating_light",
-        })
-      );
-    }
-    if (env.DISCORD_WEBHOOK_URL) {
-      deliveries.push(
-        postJSON(env.DISCORD_WEBHOOK_URL, { content: text.slice(0, 1900) })
-      );
-    }
-    if (env.SLACK_WEBHOOK_URL) {
-      deliveries.push(postJSON(env.SLACK_WEBHOOK_URL, { text }));
-    }
-    ctx.waitUntil(Promise.allSettled(deliveries));
+    notify(env, ctx, text, "Promtact detection regression");
 
     return new Response(null, { status: 204 });
   },
+
+  /**
+   * Availability check, run on a schedule.
+   *
+   * It exists because everything else about this deployment is checked from
+   * inside it. The tunnel was once down for fifteen hours while every local
+   * probe reported health, because a service bound to loopback answers happily
+   * whether or not the world can reach it. This runs at Cloudflare's edge, so
+   * it sees what a customer sees.
+   */
+  async scheduled(event, env, ctx) {
+    const target = env.MONITOR_URL;
+    if (!target) {
+      console.log("MONITOR_URL is not set; nothing to check");
+      return;
+    }
+    if (!env.ANCHORS) {
+      console.error("witness storage not bound; cannot track outage state");
+      return;
+    }
+    ctx.waitUntil(runMonitor(env, ctx, target));
+  },
 };
+
+/**
+ * Fan out to whatever is configured. Failures are logged, never propagated: a
+ * dead downstream must not make the caller believe the alert was rejected.
+ */
+function notify(env, ctx, text, title) {
+  const deliveries = [];
+  if (env.NTFY_TOPIC) {
+    deliveries.push(
+      post(`https://ntfy.sh/${env.NTFY_TOPIC}`, text, {
+        Title: title,
+        Priority: "high",
+        Tags: "rotating_light",
+      })
+    );
+  }
+  if (env.DISCORD_WEBHOOK_URL) {
+    deliveries.push(
+      postJSON(env.DISCORD_WEBHOOK_URL, { content: text.slice(0, 1900) })
+    );
+  }
+  if (env.SLACK_WEBHOOK_URL) {
+    deliveries.push(postJSON(env.SLACK_WEBHOOK_URL, { text }));
+  }
+  ctx.waitUntil(Promise.allSettled(deliveries));
+}
+
+const MONITOR_KEY = "monitor:state";
+const MONITOR_FAILURES_BEFORE_ALERT = 2;
+
+async function runMonitor(env, ctx, target) {
+  const previous = (await env.ANCHORS.get(MONITOR_KEY, { type: "json" })) || {
+    failures: 0,
+    alerted: false,
+  };
+
+  let healthy = false;
+  let detail = "";
+  try {
+    const response = await fetch(target, {
+      method: "GET",
+      redirect: "manual",
+      cf: { cacheTtl: 0 },
+    });
+    // 5xx includes Cloudflare's own 530, which is what a dead tunnel returns.
+    healthy = response.status >= 200 && response.status < 400;
+    detail = `HTTP ${response.status}`;
+  } catch (err) {
+    detail = String(err);
+  }
+
+  if (healthy) {
+    if (previous.alerted) {
+      notify(env, ctx, `Promtact is reachable again: ${target} (${detail})`,
+        "Promtact recovered");
+    }
+    await env.ANCHORS.put(MONITOR_KEY, JSON.stringify({
+      failures: 0,
+      alerted: false,
+      last_ok: new Date().toISOString(),
+    }));
+    return;
+  }
+
+  const failures = previous.failures + 1;
+
+  // Two consecutive failures before paging anyone. A single edge hiccup is not
+  // an outage, and an alarm that cries wolf is one that gets muted — which
+  // would leave the deployment less monitored than it is now.
+  const shouldAlert = failures >= MONITOR_FAILURES_BEFORE_ALERT && !previous.alerted;
+  if (shouldAlert) {
+    notify(env, ctx,
+      `Promtact is unreachable from the internet: ${target} (${detail}, ${failures} consecutive checks)`,
+      "Promtact unreachable");
+  }
+
+  await env.ANCHORS.put(MONITOR_KEY, JSON.stringify({
+    failures,
+    alerted: previous.alerted || shouldAlert,
+    last_failure: new Date().toISOString(),
+    last_detail: detail,
+  }));
+}
 
 function formatAlert(alert) {
   const host = alert.host || "unknown host";

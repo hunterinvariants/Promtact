@@ -12,6 +12,15 @@ preview_urls = false
 # pattern = "alerts.example.com/*"
 # custom_domain = true
 
+# Availability check from outside the deployment. Every other probe runs on the
+# host, where a service bound to loopback answers whether or not the world can
+# reach it — the tunnel was once down for fifteen hours behind exactly that.
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+MONITOR_URL = "https://app.promtact.com/"
+
 # The witness store. Create it once and paste the id here:
 #   npx wrangler kv namespace create ANCHORS
 # Without this binding the /anchor endpoint returns 503 and the alert receiver
