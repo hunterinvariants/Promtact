@@ -955,10 +955,16 @@ works on 18 and `on` on earlier versions.
 
 ### Where the log lives
 
-The Debian and Ubuntu packages leave `logging_collector` off, so Postgres writes
-to stderr and systemd captures it into the journal. Reading the journal avoids
-restarting the database to turn the file collector on, which is the better trade
-for a running deployment. Set **one** of these:
+The Debian and Ubuntu packages leave `logging_collector` off, but they still
+redirect the server's stderr into `/var/log/postgresql/postgresql-NN-main.log`.
+That is why `pg_current_logfile()` returns nothing there while the file exists:
+the function reports only what the collector itself writes. Check with
+
+```bash
+ls -l /proc/$(pgrep -f 'postgres.*main' | head -1)/fd/2
+```
+
+Set **one** of these, whichever matches the deployment:
 
 ```
 PROMTACT_PG_UNIT=postgresql@18-main      # journal source
@@ -977,7 +983,7 @@ Fill in `/etc/promtact/access-shipper.env`:
 ```
 PROMTACT_URL=http://127.0.0.1:8080
 PROMTACT_REPORTER_TOKEN=<a token for a user with the reporter role only>
-PROMTACT_PG_UNIT=postgresql@18-main
+PROMTACT_PG_LOG=/var/log/postgresql/postgresql-18-main.log
 ```
 
 The token belongs to a user whose only role is `reporter`. It must not be an

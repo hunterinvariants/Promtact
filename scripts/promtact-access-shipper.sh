@@ -85,17 +85,26 @@ read_log | while IFS= read -r line; do
     *)                         continue ;;
   esac
 
-  user="$(printf '%s' "$line"   | grep -oP 'user=\K[^,]*'   | head -1)"
-  db="$(printf '%s' "$line"     | grep -oP 'db=\K[^,]*'     | head -1)"
-  app="$(printf '%s' "$line"    | grep -oP 'app=\K[^,]*'    | head -1)"
-  client="$(printf '%s' "$line" | grep -oP 'client=\K[^ ,]*' | head -1)"
+  # The prefix has a fixed shape, so all four fields come out of one pass.
+  # sed rather than grep -oP: PCRE is missing on busybox and BSD, and a control
+  # that silently extracts nothing there is worse than one that is absent.
+  fields="$(printf '%s' "$line" | sed -n     's/.*user=\([^,]*\),db=\([^,]*\),app=\([^,]*\),client=\([^ ]*\).*/|||/p')"
+  [ -z "$fields" ] && continue
 
-  # The service's own connections are filtered here as well as server-side.
-  # Doing it in both places keeps the ordinary traffic off the wire entirely,
-  # which matters because it is thousands of times the volume of the sessions
-  # this exists to catch.
-  if [ "$app" = "promtact" ]; then
-    continue
+  user="${fields%%|*}";  rest="${fields#*|}"
+  db="${rest%%|*}";      rest="${rest#*|}"
+  app="${rest%%|*}"
+  client="${rest#*|}"
+
+  # The application name is taken from the message body when it is there. At
+  # authorization time Postgres does not yet know it, so the prefix carries
+  # "[unknown]" while the body already states it. Reading only the prefix would
+  # make every session look anonymous — including the service's own, which would
+  # then be reported as unannounced by the thousand until someone switched the
+  # alarm off.
+  body_app="$(printf '%s' "$line" | sed -n 's/.*application_name=\([^ ,]*\).*//p')"
+  if [ -n "$body_app" ]; then
+    app="$body_app"
   fi
 
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
