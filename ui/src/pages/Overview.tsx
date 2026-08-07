@@ -24,7 +24,9 @@ type Assurance = {
   shipper_silent: boolean;
 };
 
-export default function Overview() {
+type Navigate = (page: any) => void;
+
+export default function Overview({ onNavigate }: { onNavigate?: Navigate }) {
   const [status, setStatus] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [error, setError] = useState("");
@@ -60,16 +62,19 @@ export default function Overview() {
     <>
       {error ? <div className="callout">⚠ {error}</div> : null}
 
-      {assurance ? <Funnel assurance={assurance} /> : null}
-      {assurance ? <AssuranceStrip assurance={assurance} /> : null}
+      {assurance ? <Funnel assurance={assurance} onNavigate={onNavigate} /> : null}
+      {assurance ? <AssuranceStrip assurance={assurance} onNavigate={onNavigate} /> : null}
 
       <div className="grid grid-secondary">
         <Secondary label="Open alerts" value={openAlerts.length}
-          hint={`${critical.length} high or critical`} tone={critical.length ? "warn" : "calm"} />
-        <Secondary label="Assets" value={status?.asset_count ?? "—"} hint="seen in this tenant" />
+          hint={`${critical.length} high or critical`} tone={critical.length ? "warn" : "calm"}
+          onClick={onNavigate && (() => onNavigate("alerts"))} />
+        <Secondary label="Assets" value={status?.asset_count ?? "—"} hint="seen in this tenant"
+          onClick={onNavigate && (() => onNavigate("assets"))} />
         <Secondary label="Events" value={status?.event_count ?? "—"} hint="ingested" />
         <Secondary label="Response actions" value={status?.action_count ?? "—"} hint="planned or executed" />
-        <Secondary label="Audit records" value={status?.audit_count ?? "—"} hint="hash-chained" />
+        <Secondary label="Audit records" value={status?.audit_count ?? "—"} hint="hash-chained"
+          onClick={onNavigate && (() => onNavigate("health"))} />
       </div>
 
       <Panel title="Recent alerts" note={`${openAlerts.length} open`} bodyless>
@@ -116,7 +121,7 @@ export default function Overview() {
  * deployment that has denied nothing should look like one that has denied
  * nothing, not like one with a tiny sliver of red.
  */
-function Funnel({ assurance }: { assurance: Assurance }) {
+function Funnel({ assurance, onNavigate }: { assurance: Assurance; onNavigate?: Navigate }) {
   const total = assurance.decisions_total;
   const rows = [
     { key: "allowed", label: "Allowed", value: assurance.decisions_allowed,
@@ -149,7 +154,23 @@ function Funnel({ assurance }: { assurance: Assurance }) {
           {rows.map((row) => {
             const share = total > 0 ? (row.value / total) * 100 : 0;
             return (
-              <div className="funnel-row" key={row.key}>
+              <div
+                className={`funnel-row ${onNavigate ? "is-clickable" : ""}`}
+                key={row.key}
+                role={onNavigate ? "button" : undefined}
+                tabIndex={onNavigate ? 0 : undefined}
+                onClick={onNavigate ? () => onNavigate("alerts") : undefined}
+                onKeyDown={
+                  onNavigate
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onNavigate("alerts");
+                        }
+                      }
+                    : undefined
+                }
+              >
                 <div className="funnel-row-label">
                   <span className={`dot dot-${row.key}`} />
                   {row.label}
@@ -179,7 +200,7 @@ function Funnel({ assurance }: { assurance: Assurance }) {
  * running degraded, and nobody reached the database unannounced. Each states a
  * fact rather than a colour, so "good" is legible without knowing the palette.
  */
-function AssuranceStrip({ assurance }: { assurance: Assurance }) {
+function AssuranceStrip({ assurance, onNavigate }: { assurance: Assurance; onNavigate?: Navigate }) {
   const items = [
     {
       label: "Audit chain",
@@ -221,7 +242,20 @@ function AssuranceStrip({ assurance }: { assurance: Assurance }) {
       {items.map((item) => (
         <div
           key={item.label}
-          className={`assurance-item ${item.neutral ? "is-neutral" : item.ok ? "is-ok" : "is-bad"}`}
+          className={`assurance-item ${item.neutral ? "is-neutral" : item.ok ? "is-ok" : "is-bad"} ${onNavigate ? "is-clickable" : ""}`}
+          role={onNavigate ? "button" : undefined}
+          tabIndex={onNavigate ? 0 : undefined}
+          onClick={onNavigate ? () => onNavigate("health") : undefined}
+          onKeyDown={
+            onNavigate
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onNavigate("health");
+                  }
+                }
+              : undefined
+          }
         >
           <div className="assurance-label">{item.label}</div>
           <div className="assurance-value">{item.value}</div>
@@ -232,11 +266,29 @@ function AssuranceStrip({ assurance }: { assurance: Assurance }) {
   );
 }
 
-function Secondary({ label, value, hint, tone }: {
-  label: string; value: any; hint?: string; tone?: "warn" | "calm";
+function Secondary({ label, value, hint, tone, onClick }: {
+  label: string; value: any; hint?: string; tone?: "warn" | "calm"; onClick?: () => void;
 }) {
+  // A tile without a destination stays a plain div: making everything look
+  // clickable and having half of it do nothing is worse than being honest
+  // about which numbers lead somewhere.
   return (
-    <div className={`secondary ${tone === "warn" ? "is-warn" : ""}`}>
+    <div
+      className={`secondary ${tone === "warn" ? "is-warn" : ""} ${onClick ? "is-clickable" : ""}`}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
       <div className="secondary-value">{typeof value === "number" ? value.toLocaleString() : value}</div>
       <div className="secondary-label">{label}</div>
       {hint ? <div className="secondary-hint">{hint}</div> : null}

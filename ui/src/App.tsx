@@ -3,14 +3,22 @@ import { api, ApiError, isPlatformAdmin, Session } from "./api";
 import Alerts from "./pages/Alerts";
 import Assets from "./pages/Assets";
 import Detections from "./pages/Detections";
+import Health from "./pages/Health";
 import Overview from "./pages/Overview";
 import Settings from "./pages/Settings";
 import Tenants from "./pages/Tenants";
 
-type PageKey = "overview" | "alerts" | "assets" | "detections" | "tenants" | "settings";
+type PageKey = "overview" | "health" | "alerts" | "assets" | "detections" | "tenants" | "settings";
 
 const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; title: string; subtitle: string }[] = [
   { key: "overview", label: "Overview", icon: "◎", title: "Overview", subtitle: "Current posture across your estate" },
+  {
+    key: "health",
+    label: "System health",
+    icon: "❍",
+    title: "System health",
+    subtitle: "Whether every part of the deployment is doing its job",
+  },
   { key: "alerts", label: "Alerts", icon: "⚑", title: "Alerts", subtitle: "Correlated detections awaiting triage" },
   { key: "assets", label: "Assets", icon: "▤", title: "Assets", subtitle: "Hosts and agent surfaces under watch" },
   {
@@ -72,7 +80,7 @@ function Login({ onSignedIn, sso }: { onSignedIn: (session: Session) => void; ss
     <div className="login">
       <form className="login-card" onSubmit={submit}>
         <div className="brand" style={{ padding: 0, marginBottom: 16 }}>
-          <div className="brand-mark">OA</div>
+          <div className="brand-mark">P</div>
           <div>
             <div className="brand-name" style={{ color: "var(--text-primary)" }}>
               Promtact
@@ -176,6 +184,8 @@ export default function App() {
 
   const renderPage = () => {
     switch (active.key) {
+      case "health":
+        return <Health />;
       case "alerts":
         return <Alerts />;
       case "assets":
@@ -187,7 +197,7 @@ export default function App() {
       case "settings":
         return <Settings session={session} />;
       default:
-        return <Overview />;
+        return <Overview onNavigate={setPage} />;
     }
   };
 
@@ -195,9 +205,9 @@ export default function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">OA</div>
+          <div className="brand-mark">P</div>
           <div>
-            <div className="brand-name">Threat Defense</div>
+            <div className="brand-name">Promtact</div>
             <div className="brand-sub">{session.principal?.tenant || "default"}</div>
           </div>
         </div>
