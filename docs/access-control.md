@@ -18,6 +18,7 @@ it reaches a handler.
 | `ingestor` | Submit telemetry, request tool decisions |
 | `analyst` | Read audit records, work the approval queue |
 | `operator` | Approve response actions, manage deception tokens |
+| `reporter` | Submit observed host sessions, and nothing else |
 | `admin` | Tenant administration, provisioning, key management |
 
 Three properties are worth naming because they are the ones usually missing:

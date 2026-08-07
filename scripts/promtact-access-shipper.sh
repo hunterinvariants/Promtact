@@ -13,18 +13,18 @@
 #
 # Configure in /etc/promtact/access-shipper.env:
 #   PROMTACT_URL=http://127.0.0.1:8080
-#   PROMTACT_ADMIN_TOKEN=...
+#   PROMTACT_REPORTER_TOKEN=...
 #   PROMTACT_PG_LOG=/var/log/postgresql/postgresql-16-main.log
 
 set -euo pipefail
 
 URL="${PROMTACT_URL:-http://127.0.0.1:8080}"
-TOKEN="${PROMTACT_ADMIN_TOKEN:-}"
+TOKEN="${PROMTACT_REPORTER_TOKEN:-}"
 PGLOG="${PROMTACT_PG_LOG:-}"
 HEARTBEAT_SECONDS="${PROMTACT_HEARTBEAT_SECONDS:-300}"
 
 if [ -z "$TOKEN" ]; then
-  echo "access-shipper: PROMTACT_ADMIN_TOKEN is required" >&2
+  echo "access-shipper: PROMTACT_REPORTER_TOKEN is required" >&2
   exit 1
 fi
 if [ -z "$PGLOG" ] || [ ! -r "$PGLOG" ]; then
@@ -36,7 +36,7 @@ submit() {
   # Delivery failure must not kill the shipper: the service notices silence by
   # itself, and a crash loop would only make the gap longer.
   curl -sS -m 10 -o /dev/null \
-    -X POST "$URL/api/admin/access-log" \
+    -X POST "$URL/api/access-log" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     -d "$1" || echo "access-shipper: submission failed" >&2

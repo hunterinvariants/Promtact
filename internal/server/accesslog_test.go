@@ -14,7 +14,7 @@ import (
 
 func submitSessions(t *testing.T, app *App, body string) map[string]any {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/api/admin/access-log", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/access-log", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	app.handleAccessLog(rec, req)
 	if rec.Code != http.StatusAccepted {
@@ -127,13 +127,68 @@ func TestHeartbeatWithoutSessionsCounts(t *testing.T) {
 	}
 }
 
-func TestAccessLogIsAdminOnly(t *testing.T) {
-	for _, method := range []string{"GET", "POST"} {
-		required := auth.RequiredRoles(method, "/api/admin/access-log")
-		for _, role := range []string{auth.RoleViewer, auth.RoleIngestor, auth.RoleAnalyst, auth.RoleOperator} {
-			if (auth.Principal{Name: "x", Roles: []string{role}}).HasAny(required...) {
-				t.Errorf("%s /api/admin/access-log is reachable for %s", method, role)
-			}
+// The shipper runs unattended on the host. Its credential must let it report
+// observations and nothing else — putting the deployment's most privileged
+// token in its least protected place is exactly the escalation this product
+// exists to prevent elsewhere.
+func TestReporterCanReportAndNothingElse(t *testing.T) {
+	reporter := auth.Principal{Name: "access-shipper", Roles: []string{auth.RoleReporter}}
+
+	if !reporter.HasAny(auth.RequiredRoles(http.MethodPost, "/api/access-log")...) {
+		t.Fatal("the reporter cannot submit observations, which is its only job")
+	}
+
+	// Everything a compromised shipper must not be able to reach.
+	forbidden := []struct{ method, path string }{
+		{"POST", "/api/admin/tenants"},
+		{"GET", "/api/admin/tenants"},
+		{"POST", "/api/admin/breakglass"},
+		{"GET", "/api/admin/access-log"},
+		{"GET", "/api/audit/witness"},
+		{"GET", "/metrics"},
+		{"POST", "/api/scim/v2/Users"},
+		{"POST", "/api/gateway/decide"},
+		{"POST", "/api/events"},
+		{"GET", "/api/alerts"},
+		{"GET", "/api/audit"},
+		{"POST", "/api/policy/reload"},
+	}
+	for _, target := range forbidden {
+		if reporter.HasAny(auth.RequiredRoles(target.method, target.path)...) {
+			t.Errorf("a reporter can reach %s %s", target.method, target.path)
 		}
+	}
+}
+
+// Reading the findings is analyst work; submitting them is not.
+func TestReadingFindingsIsSeparateFromSubmittingThem(t *testing.T) {
+	analyst := auth.Principal{Name: "sam", Roles: []string{auth.RoleAnalyst}}
+	if !analyst.HasAny(auth.RequiredRoles(http.MethodGet, "/api/access-log")...) {
+		t.Error("an analyst cannot read the access-log findings")
+	}
+	if analyst.HasAny(auth.RequiredRoles(http.MethodPost, "/api/access-log")...) {
+		t.Error("an analyst can submit observations, which only the shipper should do")
+	}
+
+	// A viewer has no business here in either direction.
+	viewer := auth.Principal{Name: "vic", Roles: []string{auth.RoleViewer}}
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		if viewer.HasAny(auth.RequiredRoles(method, "/api/access-log")...) {
+			t.Errorf("a viewer can %s the access log", method)
+		}
+	}
+}
+
+// The endpoint must not be served from under /api/admin/ any more: a path there
+// demands admin, which is the escalation this change removes.
+func TestAccessLogIsNotUnderTheAdminPrefix(t *testing.T) {
+	app, err := NewWithOptions(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	app.Routes().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/admin/access-log", nil))
+	if rec.Code == http.StatusOK {
+		t.Fatal("the access log is still served under the admin prefix")
 	}
 }

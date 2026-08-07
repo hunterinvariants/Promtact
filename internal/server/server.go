@@ -342,7 +342,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/status", a.handleStatus)
 	mux.HandleFunc("/api/openapi.json", a.handleOpenAPI)
 	mux.HandleFunc("/api/session", a.handleSession)
-	mux.HandleFunc("/api/admin/access-log", a.handleAccessLog)
+	mux.HandleFunc("/api/access-log", a.handleAccessLog)
 	mux.HandleFunc("/api/admin/breakglass", a.handleBreakglass)
 	mux.HandleFunc("/api/admin/breakglass/", a.handleBreakglassClose)
 	mux.HandleFunc("/api/audit/witness", a.handleAuditWitness)

@@ -958,7 +958,7 @@ Fill in `/etc/promtact/access-shipper.env`:
 
 ```
 PROMTACT_URL=http://127.0.0.1:8080
-PROMTACT_ADMIN_TOKEN=<an admin token>
+PROMTACT_REPORTER_TOKEN=<a token for a user with the reporter role only>
 PROMTACT_PG_LOG=/var/log/postgresql/postgresql-16-main.log
 ```
 
@@ -975,11 +975,11 @@ systemctl daemon-reload && systemctl enable --now promtact-access-shipper
 
 ```bash
 # Should report a recent heartbeat and no unannounced sessions.
-curl -s -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/admin/access-log
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/access-log
 
 # Connect without announcing. This must produce an alert.
 psql "$PROMTACT_POSTGRES_DSN" -c 'SELECT 1' >/dev/null
-curl -s -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/admin/access-log
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/access-log
 ```
 
 The second call must show `sessions_unannounced` incremented, and the alert

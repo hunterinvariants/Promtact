@@ -24,6 +24,13 @@ const (
 	RoleOperator = "operator"
 	RoleAdmin    = "admin"
 
+	// RoleReporter may submit observations about the host — currently database
+	// sessions — and nothing else. It exists because the component that does so
+	// runs unattended on the host, and giving that a role which can also create
+	// tenants and issue keys would put the deployment's most privileged
+	// credential in its least protected place.
+	RoleReporter = "reporter"
+
 	// KindHuman is a person who may hold an interactive console session;
 	// KindService is a machine identity that authenticates with a bearer key
 	// only. The distinction is what makes a second factor enforceable at all.
@@ -384,6 +391,16 @@ func RequiredRoles(method string, path string) []string {
 	if strings.HasPrefix(path, "/api/auth/mfa") {
 		return []string{RoleViewer, RoleIngestor, RoleAnalyst, RoleOperator}
 	}
+	// Reporting an observed host session is not administration. It sits outside
+	// /api/admin/ deliberately: the shipper that posts here runs unattended on
+	// the host, so its credential must not also open tenant provisioning.
+	if path == "/api/access-log" {
+		if method == http.MethodPost {
+			return []string{RoleReporter}
+		}
+		// Reading the findings is analyst work.
+		return []string{RoleReporter, RoleAnalyst, RoleOperator}
+	}
 	// The witness status says how far the evidence trail is independently
 	// corroborated. That is a statement about the operator, not about a tenant's
 	// data, so it does not follow the audit-read rule below.
@@ -459,6 +476,7 @@ func normalizeUsers(users []UserConfig) []UserConfig {
 
 var knownRoles = map[string]struct{}{
 	RoleViewer:   {},
+	RoleReporter: {},
 	RoleIngestor: {},
 	RoleAnalyst:  {},
 	RoleOperator: {},
