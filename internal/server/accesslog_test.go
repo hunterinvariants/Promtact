@@ -66,7 +66,7 @@ func TestAnnouncedSessionIsNotFlagged(t *testing.T) {
 	if result["unannounced"].(float64) != 0 {
 		t.Fatalf("an announced session was flagged: %v", result)
 	}
-	if _, observed, unannounced := app.accessLog.snapshot(); observed != 1 || unannounced != 0 {
+	if observed, unannounced := app.accessLogSummary(); observed != 1 || unannounced != 0 {
 		t.Fatalf("counters wrong: observed=%d unannounced=%d", observed, unannounced)
 	}
 }
@@ -86,7 +86,7 @@ func TestTheServicesOwnSessionsAreIgnored(t *testing.T) {
 	if result["unannounced"].(float64) != 0 {
 		t.Fatalf("the service's own sessions were flagged: %v", result)
 	}
-	if _, observed, _ := app.accessLog.snapshot(); observed != 0 {
+	if observed, _ := app.accessLogSummary(); observed != 0 {
 		t.Fatalf("the service's own sessions were counted: %d", observed)
 	}
 }
@@ -118,11 +118,10 @@ func TestHeartbeatWithoutSessionsCounts(t *testing.T) {
 	app := breakglassApp(t)
 	submitSessions(t, app, `{"heartbeat":true,"sessions":[]}`)
 
-	last, observed, _ := app.accessLog.snapshot()
-	if last.IsZero() {
+	if app.accessLog.heartbeat().IsZero() {
 		t.Fatal("a heartbeat did not register")
 	}
-	if observed != 0 {
+	if observed, _ := app.accessLogSummary(); observed != 0 {
 		t.Fatalf("a heartbeat counted as a session: %d", observed)
 	}
 }
@@ -190,5 +189,30 @@ func TestAccessLogIsNotUnderTheAdminPrefix(t *testing.T) {
 	app.Routes().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/admin/access-log", nil))
 	if rec.Code == http.StatusOK {
 		t.Fatal("the access log is still served under the admin prefix")
+	}
+}
+
+// The summary an auditor reads must not be resettable by whoever can restart the
+// service — which is exactly the operator this control watches. It is derived
+// from the durable audit records, so wiping the process state changes nothing.
+func TestFindingsSurviveLosingProcessState(t *testing.T) {
+	app := breakglassApp(t)
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	submitSessions(t, app, fmt.Sprintf(
+		`{"sessions":[{"at":%q,"user":"promtact","application":"psql","event":"connect"}]}`, now))
+
+	observed, unannounced := app.accessLogSummary()
+	if observed != 1 || unannounced != 1 {
+		t.Fatalf("the finding was not recorded: observed=%d unannounced=%d", observed, unannounced)
+	}
+
+	// Everything the process holds in memory is thrown away, as a restart would.
+	app.accessLog = &accessLogState{}
+	app.breakglass = newBreakglassRegister()
+
+	observed, unannounced = app.accessLogSummary()
+	if observed != 1 || unannounced != 1 {
+		t.Fatalf("the finding was lost with the process state: observed=%d unannounced=%d", observed, unannounced)
 	}
 }

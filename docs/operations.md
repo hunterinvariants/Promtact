@@ -1021,6 +1021,11 @@ that `log_connections` is on and that the log path is right.
   stopping it and noticing is real.
 - Announcements are held in memory. They are a convenience for the reconciler;
   the evidence is the audit record, which is durable and witnessed.
+- The findings themselves are not counted in memory. `sessions_observed` and
+  `sessions_unannounced` are derived from the audit records, so restarting the
+  service — or deploying over it — does not reset what an auditor sees. The
+  heartbeat is the exception and does reset, which corrects itself within one
+  interval.
 - A restart clears open windows, so sessions during the restart window read as
   unannounced. That errs towards noise rather than silence, which is the right
   direction.

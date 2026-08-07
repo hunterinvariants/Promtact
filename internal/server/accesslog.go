@@ -37,11 +37,18 @@ type observedSession struct {
 	Event       string    `json:"event"`
 }
 
+// accessLogState holds only the heartbeat. The findings themselves are not kept
+// here: counters in memory would let anyone who can restart the service — which
+// is exactly the operator this watches — reset the summary an auditor reads.
+// They are derived from the audit records instead, which are durable and reach
+// the external witness.
+//
+// The heartbeat stays in memory deliberately. Writing one every five minutes
+// into the audit chain would bury the records that matter under liveness noise,
+// and losing it on restart is self-correcting within one interval.
 type accessLogState struct {
 	mu            sync.Mutex
 	lastHeartbeat time.Time
-	observed      int
-	unannounced   int
 }
 
 func (s *accessLogState) noteHeartbeat(at time.Time) {
@@ -50,19 +57,29 @@ func (s *accessLogState) noteHeartbeat(at time.Time) {
 	s.lastHeartbeat = at
 }
 
-func (s *accessLogState) noteSession(announced bool) {
+func (s *accessLogState) heartbeat() time.Time {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.observed++
-	if !announced {
-		s.unannounced++
-	}
+	return s.lastHeartbeat
 }
 
-func (s *accessLogState) snapshot() (time.Time, int, int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.lastHeartbeat, s.observed, s.unannounced
+// accessLogSummary counts observed and unannounced sessions from the audit
+// records rather than from a counter. A restart therefore does not reset what
+// an auditor sees, and neither does a deploy.
+//
+// The window is whatever the retention policy keeps, which is the same bound
+// that applies to every other finding.
+func (a *App) accessLogSummary() (observed int, unannounced int) {
+	for _, audit := range a.store.ListAudits() {
+		if audit.Action != auditActionDatabaseSession {
+			continue
+		}
+		observed++
+		if audit.Outcome == auditOutcomeUnannounced {
+			unannounced++
+		}
+	}
+	return observed, unannounced
 }
 
 // handleAccessLog receives observed database sessions from the host shipper.
@@ -70,9 +87,9 @@ func (a *App) handleAccessLog(w http.ResponseWriter, r *http.Request) {
 	principal := principalFromRequest(r)
 
 	if r.Method == http.MethodGet {
-		last, observed, unannounced := a.accessLog.snapshot()
+		observed, unannounced := a.accessLogSummary()
 		writeJSON(w, http.StatusOK, map[string]any{
-			"last_heartbeat":       last,
+			"last_heartbeat":       a.accessLog.heartbeat(),
 			"sessions_observed":    observed,
 			"sessions_unannounced": unannounced,
 			"shipper_silent":       a.accessLogSilent(),
@@ -109,19 +126,17 @@ func (a *App) handleAccessLog(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		covered := a.breakglass.Covers(session.At)
-		a.accessLog.noteSession(covered)
-		if covered {
-			a.recordAudit(r, principal, "operator.database.session", "database", session.User, "announced",
-				accessLogMetadata(session))
+		if a.breakglass.Covers(session.At) {
+			a.recordAudit(r, principal, auditActionDatabaseSession, "database", session.User,
+				auditOutcomeAnnounced, accessLogMetadata(session))
 			continue
 		}
 
 		unannounced++
 		// An unannounced session is the finding. It is recorded before it is
 		// alerted, so a failed notification cannot lose it.
-		a.recordAudit(r, principal, "operator.database.session", "database", session.User, "unannounced",
-			accessLogMetadata(session))
+		a.recordAudit(r, principal, auditActionDatabaseSession, "database", session.User,
+			auditOutcomeUnannounced, accessLogMetadata(session))
 		a.alertUnannouncedSession(session)
 	}
 
@@ -165,7 +180,7 @@ func (a *App) alertUnannouncedSession(session observedSession) {
 // itself a signal: a reconciler that reacts only to what arrives can be
 // defeated by arranging for nothing to arrive.
 func (a *App) accessLogSilent() bool {
-	last, _, _ := a.accessLog.snapshot()
+	last := a.accessLog.heartbeat()
 	if last.IsZero() {
 		// Never heard from. That is not "silent" — it is not configured, and
 		// claiming an alarm for an unconfigured deployment would train the
@@ -178,4 +193,8 @@ func (a *App) accessLogSilent() bool {
 const (
 	applicationName       = "promtact"
 	accessLogSilenceAfter = 15 * time.Minute
+
+	auditActionDatabaseSession = "operator.database.session"
+	auditOutcomeAnnounced      = "announced"
+	auditOutcomeUnannounced    = "unannounced"
 )
