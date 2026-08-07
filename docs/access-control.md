@@ -70,11 +70,10 @@ without producing an entry in the application's audit chain.** The host keeps
 shell and database logs, but those are written on the same machine the operator
 controls, so they are a deterrent rather than tamper-evident evidence.
 
-This is the honest position of nearly every service of this size. It is worth
-knowing that it is also *fixable*, and that fixing it would be unusually
-credible for this product in particular — a control plane that gates agent
-access to tools has an obvious argument for gating its own operators the same
-way. It is on the roadmap rather than in the build.
+This is the honest position of nearly every service of this size. A control
+plane that gates agent access to tools has an obvious argument for gating its
+own operators the same way, so half of it has been built and the other half is
+named rather than glossed over.
 
 **What has been built against it.** The audit chain head is published to an
 external witness — a Cloudflare Worker with its own storage, in a different
