@@ -186,8 +186,8 @@ Get-Service PromtactAgent
 
 ### ☐ 7. Prove it survives a restart
 
-Restart the machine, wait two minutes, then run `Get-Service PromtactAgent`
-again and refresh the console.
+Restart the machine, wait two minutes, then run
+`Get-ScheduledTask -TaskName PromtactAgent` again and refresh the console.
 
 This step exists because a service that only works until the next reboot is the
 most common way monitoring quietly stops. It takes three minutes now, and it is
@@ -196,11 +196,11 @@ the difference between believing it works and knowing.
 ### ☐ 8. Note how to stop it
 
 ```powershell
-sc.exe stop PromtactAgent                     # pause
-sc.exe stop PromtactAgent; sc.exe delete PromtactAgent   # remove entirely
+Stop-ScheduledTask -TaskName PromtactAgent                          # pause
+Unregister-ScheduledTask -TaskName PromtactAgent -Confirm:$false    # remove entirely
 ```
 
-Removing the service stops all collection immediately. Records already sent stay
+Removing the task stops all collection immediately. Records already sent stay
 until the retention window expires.
 
 ---
@@ -211,7 +211,7 @@ until the retention window expires.
 | --- | --- |
 | `unauthorized` or 401 | The key is wrong, expired, or has a trailing space |
 | Connection timed out | Outbound HTTPS to the Promtact address is blocked |
-| Service starts, then stops | Check the token file exists and is readable by SYSTEM |
+| Task shows Ready, never Running | Run the same arguments by hand; the installer prints them |
 | Console shows nothing after 10 minutes | The service is running but the log is empty — try `-LogName Security` |
 
 Security problems, including anything about this agent: see
