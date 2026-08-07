@@ -416,7 +416,7 @@ func (e *Engine) Evaluate(event domain.Event) []domain.Alert {
 			))
 		}
 
-		if match, term, _ := gatewayContainsAny(gatewayTextVariants(event.Command, event.Signal, tool, metadataText(event.Metadata)), []string{"secret", "token", "credential", "password", "env", "ssh_key", "api_key"}); match {
+		if match, term, _ := gatewayContainsAny(gatewayTextVariants(event.Command, event.Signal, tool, metadataContentText(event.Metadata)), []string{"secret", "token", "credential", "password", "env", "ssh_key", "api_key"}); match {
 			alerts = append(alerts, newAlert(
 				"agent.secret.exposure",
 				"Potential secret exposure through agent context",
@@ -440,7 +440,7 @@ func (e *Engine) Evaluate(event domain.Event) []domain.Alert {
 	}
 
 	if match, term, variant := gatewayContainsAny(
-		gatewayTextVariants(event.Command, event.Process, event.Signal, metadataText(event.Metadata)),
+		gatewayTextVariants(event.Command, event.Process, event.Signal, metadataContentText(event.Metadata)),
 		discoveryTerms(),
 	); match && event.Kind == domain.EventProcessStart {
 		alerts = append(alerts, newAlert(
@@ -480,7 +480,7 @@ func (e *Engine) Evaluate(event domain.Event) []domain.Alert {
 	}
 
 	if func() bool {
-		match, _, _ := gatewayContainsAny(gatewayTextVariants(event.Command, event.Process, event.Signal, strings.Join(event.Labels, " "), metadataText(event.Metadata)), []string{"llama", "ollama", "vllm", "gguf", "model-download", "cuda", "gpu", "tool_spawn"})
+		match, _, _ := gatewayContainsAny(gatewayTextVariants(event.Command, event.Process, event.Signal, strings.Join(event.Labels, " "), metadataContentText(event.Metadata)), []string{"llama", "ollama", "vllm", "gguf", "model-download", "cuda", "gpu", "tool_spawn"})
 		return match
 	}() &&
 		(event.Kind == domain.EventProcessStart || event.Kind == domain.EventNetworkFlow || event.Kind == domain.EventAgentToolCall) {

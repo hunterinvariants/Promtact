@@ -20,7 +20,10 @@ func (e *Engine) GateToolCall(request domain.ToolCallRequest) domain.ToolCallDec
 	}
 
 	command := strings.TrimSpace(strings.Join([]string{request.Command, request.Arguments}, " "))
-	signal := strings.TrimSpace(strings.Join([]string{request.Signal, metadataText(request.Metadata)}, " "))
+	// Identifiers are folded out here rather than at each rule, because the
+	// event's signal is what every later rule reads: filtering downstream would
+	// leave the session id baked in and the filtering would achieve nothing.
+	signal := strings.TrimSpace(strings.Join([]string{request.Signal, metadataContentText(request.Metadata)}, " "))
 	event := domain.Event{
 		ID:          request.ID,
 		Timestamp:   request.Timestamp,
@@ -144,7 +147,7 @@ func (e *Engine) assessGatewayRequest(request domain.ToolCallRequest, tool strin
 		request.Signal,
 		request.Destination,
 		strings.Join(request.Labels, " "),
-		metadataText(request.Metadata),
+		metadataContentText(request.Metadata),
 	)
 	findings := make([]string, 0, 6)
 	verdict := domain.GatewayAllow
@@ -341,7 +344,7 @@ func (e *Engine) scoreGatewayRequest(request domain.ToolCallRequest, tool string
 		score += 10
 		factors = append(factors, "taint:obfuscated")
 	}
-	if match, term, variant := gatewayContainsAny(gatewayTextVariants(command, signal, request.Destination, strings.Join(request.Labels, " "), metadataText(request.Metadata)), injectionTerms()); match {
+	if match, term, variant := gatewayContainsAny(gatewayTextVariants(command, signal, request.Destination, strings.Join(request.Labels, " "), metadataContentText(request.Metadata)), injectionTerms()); match {
 		score += 18
 		if variant != term {
 			factors = append(factors, "injection:obfuscated")
@@ -431,6 +434,43 @@ func filterOutAlertRule(alerts []domain.Alert, ruleID string) []domain.Alert {
 		}
 	}
 	return out
+}
+
+// identifierMetadataKeys name the call rather than describe it.
+//
+// A session id, a trace id or an agent id is a label chosen by whoever wired
+// the integration up. Searching them for words like "token" or "secret" means
+// an agent called "vault-sync" or a run id that happens to contain "password"
+// incriminates every call it makes, forever — and the operator has no way to
+// tell that the finding came from a name rather than from anything the agent
+// did.
+var identifierMetadataKeys = map[string]struct{}{
+	"session_id":      {},
+	"conversation_id": {},
+	"trace_id":        {},
+	"run_id":          {},
+	"agent_id":        {},
+	"request_id":      {},
+	"tenant":          {},
+	"asset_id":        {},
+	"hostname":        {},
+	"actor":           {},
+}
+
+// metadataContentText renders the metadata that describes what a call does,
+// leaving out the fields that only say which call it is.
+func metadataContentText(metadata map[string]string) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	filtered := make(map[string]string, len(metadata))
+	for key, value := range metadata {
+		if _, isIdentifier := identifierMetadataKeys[strings.ToLower(strings.TrimSpace(key))]; isIdentifier {
+			continue
+		}
+		filtered[key] = value
+	}
+	return metadataText(filtered)
 }
 
 func metadataText(metadata map[string]string) string {

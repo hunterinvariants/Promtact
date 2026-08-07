@@ -48,10 +48,29 @@ func analyzeGatewayTaint(request domain.ToolCallRequest, tool string, command st
 		request.Signal,
 		request.Destination,
 		strings.Join(request.Labels, " "),
-		metadataText(request.Metadata),
+		metadataContentText(request.Metadata),
 		request.Actor,
 		request.Hostname,
 		tool,
+	)
+
+	// Sources are searched in what the call does, not in who is making it.
+	//
+	// Including the actor and hostname meant an account could taint every one of
+	// its own calls by being named badly. An API token authenticates as
+	// "legacy-token", "token" is on the list of secret terms, and so every call
+	// from that account — including an argument-free directory listing — was
+	// held for approval as though it carried credential material. A client
+	// waiting on those approvals simply times out, which is how this surfaced.
+	//
+	// Identity still travels, as provenance: it says who, which is what it is
+	// evidence of. It is not evidence about content.
+	sourcePool := gatewayTextVariants(
+		command,
+		request.Signal,
+		request.Destination,
+		strings.Join(request.Labels, " "),
+		metadataContentText(request.Metadata),
 	)
 
 	analysis := TaintAnalysis{
@@ -59,7 +78,7 @@ func analyzeGatewayTaint(request domain.ToolCallRequest, tool string, command st
 	}
 
 	for _, term := range taintSourceTerms() {
-		if match, matched, variant := gatewayContainsAny(variationPool, []string{term}); match {
+		if match, matched, variant := gatewayContainsAny(sourcePool, []string{term}); match {
 			source := fmt.Sprintf("%s:%s", classifyTaintSource(term), matched)
 			analysis.Sources = appendUniqueString(analysis.Sources, source)
 			analysis.Provenance = appendUniqueString(analysis.Provenance, fmt.Sprintf("source_variant:%s", variant))
