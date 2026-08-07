@@ -85,3 +85,39 @@ func TestDecisionMetricCounters(t *testing.T) {
 		}
 	}
 }
+
+// The funnel is the headline of the console, so it must not read zero after a
+// deploy. The in-memory counters exist for Prometheus, where a reset at process
+// start is expected; the dashboard reads the durable records instead.
+func TestDecisionCountsSurviveLosingProcessState(t *testing.T) {
+	app, err := NewWithOptions(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, verdict := range []domain.GatewayVerdict{
+		domain.GatewayAllow, domain.GatewayAllow,
+		domain.GatewayRequireApproval,
+		domain.GatewayDeny,
+	} {
+		app.recordAudit(nil, auth.Principal{Name: "agent", Tenant: "default"},
+			"gateway.decide", "tool_call", "req-1", string(verdict), nil)
+		app.recordDecisionMetric(verdict)
+	}
+
+	allowed, gated, denied := app.decisionCounts()
+	if allowed != 2 || gated != 1 || denied != 1 {
+		t.Fatalf("wrong counts: allowed=%d gated=%d denied=%d", allowed, gated, denied)
+	}
+
+	// Throw away everything the process holds, as a restart would.
+	app.gatewayMu.Lock()
+	app.gatewayAllowed, app.gatewayQueued, app.gatewayDenied = 0, 0, 0
+	app.gatewayMu.Unlock()
+
+	allowed, gated, denied = app.decisionCounts()
+	if allowed != 2 || gated != 1 || denied != 1 {
+		t.Fatalf("counts were lost with the process state: allowed=%d gated=%d denied=%d",
+			allowed, gated, denied)
+	}
+}

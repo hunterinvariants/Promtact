@@ -139,19 +139,17 @@ func (a *App) assuranceFor(principal auth.Principal) *domain.Assurance {
 		return nil
 	}
 
-	a.gatewayMu.Lock()
-	allowed, denied, gated := a.gatewayAllowed, a.gatewayDenied, a.gatewayQueued
-	a.gatewayMu.Unlock()
+	allowed, gated, denied := a.decisionCounts()
 
 	chain := a.store.AuditChain()
 	degraded, _, _ := a.DegradedState()
 	_, unannounced := a.accessLogSummary()
 
 	assurance := &domain.Assurance{
-		DecisionsAllowed: int(allowed),
-		DecisionsGated:   int(gated),
-		DecisionsDenied:  int(denied),
-		DecisionsTotal:   int(allowed + gated + denied),
+		DecisionsAllowed: allowed,
+		DecisionsGated:   gated,
+		DecisionsDenied:  denied,
+		DecisionsTotal:   allowed + gated + denied,
 		AuditChainValid:  chain.Valid,
 		AuditChainIndex:  chain.Linked,
 		DegradedMode:     degraded,
@@ -168,4 +166,30 @@ func (a *App) assuranceFor(principal auth.Principal) *domain.Assurance {
 		assurance.WitnessDiverged = diverged
 	}
 	return assurance
+}
+
+// decisionCounts reads the verdicts from the audit records rather than from the
+// in-memory counters. Those counters exist for Prometheus, where a reset at
+// process start is expected and handled by rate(); on a dashboard it means the
+// headline reads zero after every deploy, which is exactly when someone is
+// looking at it.
+//
+// The audit records are durable, and their window is the retention policy — so
+// the figure is "decisions we still hold evidence for" rather than "decisions
+// since this process started", which is the more useful of the two anyway.
+func (a *App) decisionCounts() (allowed int, gated int, denied int) {
+	for _, audit := range a.store.ListAudits() {
+		if audit.Action != "gateway.decide" {
+			continue
+		}
+		switch domain.GatewayVerdict(audit.Outcome) {
+		case domain.GatewayAllow:
+			allowed++
+		case domain.GatewayRequireApproval:
+			gated++
+		case domain.GatewayDeny:
+			denied++
+		}
+	}
+	return allowed, gated, denied
 }
