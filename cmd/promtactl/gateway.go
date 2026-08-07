@@ -44,14 +44,18 @@ func gatewayUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Submits a tool call for a verdict. A denied call does not run.")
 	fmt.Fprintln(os.Stderr, "Credentials: --token, --token-file, or PROMTACT_API_TOKEN.")
+	fmt.Fprintln(os.Stderr, "Agent identity: --agent-id and --agent-token. Without one the gateway")
+	fmt.Fprintln(os.Stderr, "holds the call for a person, however ordinary the tool.")
 }
 
 type gatewayClientFlags struct {
-	baseURL *string
-	token   *string
-	file    *string
-	actor   *string
-	asset   *string
+	baseURL    *string
+	token      *string
+	file       *string
+	actor      *string
+	asset      *string
+	agentID    *string
+	agentToken *string
 }
 
 func gatewayClientCommonFlags(fs *flag.FlagSet) gatewayClientFlags {
@@ -65,7 +69,23 @@ func gatewayClientCommonFlags(fs *flag.FlagSet) gatewayClientFlags {
 		file:    fs.String("token-file", "", "read the token from a file instead"),
 		actor:   fs.String("actor", "promtactl", "the agent or account making the call"),
 		asset:   fs.String("asset", host, "the machine the call originates from"),
+		// An agent that does not identify itself gets nothing unattended: the
+		// gateway holds its calls for a person. Registering the identity in the
+		// policy is what lets an agent run without one.
+		agentID:    fs.String("agent-id", os.Getenv("PROMTACT_AGENT_ID"), "registered agent identity making the call"),
+		agentToken: fs.String("agent-token", os.Getenv("PROMTACT_AGENT_SECRET"), "secret proving that identity"),
 	}
+}
+
+// applyIdentity is separate from the call itself so both subcommands carry the
+// identity the same way, and so an unset identity stays visibly unset rather
+// than quietly becoming an empty string somewhere deeper.
+func (f gatewayClientFlags) applyIdentity(request *domain.ToolCallRequest) {
+	request.AssetID = *f.asset
+	request.Hostname = *f.asset
+	request.Actor = *f.actor
+	request.AgentID = strings.TrimSpace(*f.agentID)
+	request.AgentToken = strings.TrimSpace(*f.agentToken)
 }
 
 func (f gatewayClientFlags) resolve() (string, string, error) {
@@ -101,17 +121,17 @@ func gatewayCall(args []string) error {
 		return err
 	}
 
-	client := &http.Client{Timeout: 20 * time.Second}
-	result, err := postGatewayExecution(client, base, token, domain.ToolCallRequest{
-		AssetID:     *common.asset,
-		Hostname:    *common.asset,
-		Actor:       *common.actor,
+	request := domain.ToolCallRequest{
 		ToolName:    strings.TrimSpace(*tool),
 		Command:     *command,
 		Arguments:   *arguments,
 		Destination: *destination,
 		Labels:      []string{"agent", "tool-call"},
-	})
+	}
+	common.applyIdentity(&request)
+
+	client := &http.Client{Timeout: 20 * time.Second}
+	result, err := postGatewayExecution(client, base, token, request)
 	if err != nil {
 		return err
 	}
@@ -180,8 +200,12 @@ func gatewayDemo(args []string) error {
 		request domain.ToolCallRequest
 	}{
 		{
-			heading: "An approved tool doing ordinary work",
-			proves:  "The gateway is in the path of every call, including the ones that should pass. If this is denied, the policy is too tight, not the agent misbehaving.",
+			heading: "An approved tool, called by an agent that has not identified itself",
+			proves: "The tool is permitted and the work is ordinary. Whether it proceeds on " +
+				"its own is a separate question, and the `Because` line above is the answer " +
+				"for this deployment — an agent that cannot say who it is, or one whose recent " +
+				"history is unusual, gets a person rather than a result. Register the agent " +
+				"and pass --agent-id with --agent-token to let routine work through unattended.",
 			request: domain.ToolCallRequest{
 				ToolName: "asset_inventory",
 				Command:  "list assets",
@@ -219,11 +243,16 @@ func gatewayDemo(args []string) error {
 	fmt.Println("Four tool calls through the gateway. Each one is real: it is")
 	fmt.Println("evaluated, recorded in the audit chain, and visible in the console.")
 
+	if strings.TrimSpace(*common.agentID) == "" {
+		fmt.Println("\nNo agent identity was given, so every call below is made by an agent")
+		fmt.Println("the deployment cannot name. Where the policy registers agent identities,")
+		fmt.Println("that alone is enough to hold a call for a person — so read the `Because`")
+		fmt.Println("line on each verdict rather than assuming which control produced it.")
+	}
+
 	for i, tc := range cases {
 		request := tc.request
-		request.AssetID = *common.asset
-		request.Hostname = *common.asset
-		request.Actor = *common.actor
+		common.applyIdentity(&request)
 		request.Labels = []string{"agent", "tool-call", "demo"}
 
 		fmt.Printf("\n%s\n%d. %s\n%s\n\n", strings.Repeat("─", 68), i+1, tc.heading, strings.Repeat("─", 68))
@@ -236,8 +265,13 @@ func gatewayDemo(args []string) error {
 	}
 
 	fmt.Printf("\n%s\n", strings.Repeat("─", 68))
-	fmt.Println("Open the console and look at Alerts. Every verdict above is also an")
-	fmt.Println("audit record; `promtactl breakglass` and the witness make that record")
-	fmt.Println("hard to remove quietly.")
+	fmt.Println("Held calls are waiting in the console under Responses; approving one")
+	fmt.Println("there is what lets it run. Every verdict above is also an audit record,")
+	fmt.Println("and the witness makes those records hard to remove quietly.")
+	fmt.Println()
+	fmt.Println("To let an agent work without a person on each call, register it in the")
+	fmt.Println("policy under agent_identities with the SHA-256 of its secret:")
+	fmt.Println("  promtactl token-hash --token <the agent's secret>")
+	fmt.Println("then call with --agent-id and --agent-token.")
 	return nil
 }
