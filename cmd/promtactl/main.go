@@ -91,6 +91,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
+	case "gateway":
+		if err := gatewayCommand(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	case "breakglass":
 		runBreakglass(os.Args[2:])
 	case "bench":
@@ -801,6 +806,14 @@ func postEvents(client *http.Client, baseURL string, token string, events []doma
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage:")
+	fmt.Fprintln(os.Stderr, "  promtactl gateway call --tool NAME [--command ...] [--arguments ...] [--destination ...]")
+	fmt.Fprintln(os.Stderr, "  promtactl gateway demo   # four tool calls through the gateway, with the verdicts explained")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "  promtactl tenant create   --name acme --display \"Acme GmbH\"")
+	fmt.Fprintln(os.Stderr, "  promtactl tenant add-agent --tenant acme")
+	fmt.Fprintln(os.Stderr, "  promtactl tenant list | new-key --tenant acme --user acme-agent")
+	fmt.Fprintln(os.Stderr, "  promtactl breakglass ...  # announce direct access to the host")
+	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "  promtactl collect --source suricata-eve --file eve.json --output events.jsonl")
 	fmt.Fprintln(os.Stderr, "  promtactl replay --file events.jsonl [--url http://localhost:8080] [--token TOKEN]")
 	fmt.Fprintln(os.Stderr, "  promtactl backup --postgres-dsn DSN --output backup.json")
