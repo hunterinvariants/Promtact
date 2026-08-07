@@ -470,9 +470,24 @@ func agentCommand(args []string) error {
 	statePath := fs.String("state-file", "", "optional state file for offsets")
 	nativeLogName := fs.String("log-name", "Microsoft-Windows-Sysmon/Operational", "Windows event log name for native collection")
 	nativeJournalUnit := fs.String("journal-unit", "", "optional systemd unit filter for native journald collection")
+	tokenFile := fs.String("token-file", "", "read the API token from this file instead of the command line")
 	once := fs.Bool("once", false, "process available content once and exit")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	// A long-running agent is usually installed as a service, and a token on the
+	// command line is then readable by every local administrator and visible in
+	// the process list. The file can be locked down; the argument cannot.
+	if path := strings.TrimSpace(*tokenFile); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("reading --token-file: %w", err)
+		}
+		trimmed := strings.TrimSpace(string(data))
+		if trimmed == "" {
+			return fmt.Errorf("--token-file %s is empty", path)
+		}
+		*token = trimmed
 	}
 	if *source == "" {
 		return errors.New("agent requires --source")

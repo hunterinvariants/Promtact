@@ -171,6 +171,7 @@ go test ./internal/store -run TestPostgresPersistenceIntegration -count=1
 | [Capabilities](docs/capabilities.md) | Everything the service does today |
 | [Configuration](docs/configuration.md) | Flags, connectors, policy files, replay |
 | [HTTP API](docs/api.md) | Endpoints; the OpenAPI document is at `/api/openapi.json` |
+| [Onboarding](docs/onboarding.md) | Bringing a new customer and their first endpoint online |
 | [Operations](docs/operations.md) | Running it: MFA, SCIM, encryption, tracing |
 | [Design decisions](docs/design-decisions.md) | Why it is built this way, including what was rejected |
 | [Technical claims](docs/technical-claims.md) | Claims with the commands that check them |
