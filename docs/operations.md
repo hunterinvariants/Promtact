@@ -938,14 +938,32 @@ Postgres must log connections with enough context to attribute them. In
 `postgresql.conf`:
 
 ```
-log_connections = on
+log_connections = 'all'
 log_disconnections = on
-log_line_prefix = '%m [%p] user=%u,db=%d,app=%a,client=%h '
+log_line_prefix = '%m [%p] %quser=%u,db=%d,app=%a,client=%h '
 ```
 
-Reload with `SELECT pg_reload_conf();`. The `app=%a` field is the one that
-matters: the service sets `application_name=promtact` on its own connections, so
-its ordinary traffic is distinguishable from an operator's `psql`.
+Reload with `SELECT pg_reload_conf()` — no restart is needed for these three.
+
+The `app=%a` field is the one that matters: the service sets
+`application_name=promtact` on its own connections, so its ordinary traffic is
+distinguishable from an operator's `psql`. The `%q` before the user fields makes
+background workers omit them, which keeps the noise down.
+
+On PostgreSQL 18 `log_connections` takes a list rather than a boolean; `'all'`
+works on 18 and `on` on earlier versions.
+
+### Where the log lives
+
+The Debian and Ubuntu packages leave `logging_collector` off, so Postgres writes
+to stderr and systemd captures it into the journal. Reading the journal avoids
+restarting the database to turn the file collector on, which is the better trade
+for a running deployment. Set **one** of these:
+
+```
+PROMTACT_PG_UNIT=postgresql@18-main      # journal source
+PROMTACT_PG_LOG=/var/log/postgresql/...  # file source
+```
 
 Then install the shipper:
 
@@ -959,8 +977,12 @@ Fill in `/etc/promtact/access-shipper.env`:
 ```
 PROMTACT_URL=http://127.0.0.1:8080
 PROMTACT_REPORTER_TOKEN=<a token for a user with the reporter role only>
-PROMTACT_PG_LOG=/var/log/postgresql/postgresql-16-main.log
+PROMTACT_PG_UNIT=postgresql@18-main
 ```
+
+The token belongs to a user whose only role is `reporter`. It must not be an
+admin token: this process runs unattended on the host, and a credential there
+should reach exactly as far as its job.
 
 The shipper needs no database credentials — it reads what Postgres already
 wrote. It runs as the service user in group `adm` so it can read the log and

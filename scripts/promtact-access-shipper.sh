@@ -11,26 +11,49 @@
 # accounted for: it sends a heartbeat even when nothing happened, and the service
 # treats silence after it has been heard from as its own signal.
 #
+# Postgres may write its log to a file or, as the Debian and Ubuntu packages do
+# by default, to stderr which systemd captures into the journal. Both are
+# supported: reading the journal avoids restarting the database to turn the file
+# collector on, which is the better trade for a running deployment.
+#
 # Configure in /etc/promtact/access-shipper.env:
 #   PROMTACT_URL=http://127.0.0.1:8080
 #   PROMTACT_REPORTER_TOKEN=...
-#   PROMTACT_PG_LOG=/var/log/postgresql/postgresql-16-main.log
+#   PROMTACT_PG_UNIT=postgresql@18-main      # journal source, or
+#   PROMTACT_PG_LOG=/var/log/postgresql/...  # file source
 
 set -euo pipefail
 
 URL="${PROMTACT_URL:-http://127.0.0.1:8080}"
 TOKEN="${PROMTACT_REPORTER_TOKEN:-}"
 PGLOG="${PROMTACT_PG_LOG:-}"
+PGUNIT="${PROMTACT_PG_UNIT:-}"
 HEARTBEAT_SECONDS="${PROMTACT_HEARTBEAT_SECONDS:-300}"
 
 if [ -z "$TOKEN" ]; then
   echo "access-shipper: PROMTACT_REPORTER_TOKEN is required" >&2
   exit 1
 fi
-if [ -z "$PGLOG" ] || [ ! -r "$PGLOG" ]; then
-  echo "access-shipper: PROMTACT_PG_LOG must point at a readable Postgres log" >&2
+if [ -n "$PGLOG" ]; then
+  if [ ! -r "$PGLOG" ]; then
+    echo "access-shipper: PROMTACT_PG_LOG is set but not readable: $PGLOG" >&2
+    exit 1
+  fi
+elif [ -z "$PGUNIT" ]; then
+  echo "access-shipper: set PROMTACT_PG_UNIT (journal) or PROMTACT_PG_LOG (file)" >&2
   exit 1
 fi
+
+# One reader for either source. -n0 and -f start at the end: history is not
+# replayed, because resubmitting sessions from before the shipper started would
+# raise alarms about access that was already dealt with.
+read_log() {
+  if [ -n "$PGLOG" ]; then
+    tail -F -n0 "$PGLOG"
+  else
+    journalctl -u "$PGUNIT" -f -n0 --output=cat
+  fi
+}
 
 submit() {
   # Delivery failure must not kill the shipper: the service notices silence by
@@ -55,7 +78,7 @@ trap 'kill 0' EXIT
 # Postgres logs connections as:
 #   ... user=NAME,db=NAME,app=NAME,client=ADDR ... connection authorized: ...
 # The prefix is configured in postgresql.conf; see docs/operations.md.
-tail -F -n0 "$PGLOG" | while IFS= read -r line; do
+read_log | while IFS= read -r line; do
   case "$line" in
     *"connection authorized"*) event="connect" ;;
     *"disconnection"*)         event="disconnect" ;;

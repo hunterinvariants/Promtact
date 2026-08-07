@@ -6,10 +6,12 @@ Wants=promtact.service
 
 [Service]
 Type=simple
-# Runs as its own user with read access to the Postgres log only. It needs no
-# database credentials: it reads what Postgres already wrote.
+# Runs as the service user with read access to the log only. It needs no
+# database credentials: it reads what Postgres already wrote. Group systemd-journal
+# covers the journal source; use adm instead when reading a log file.
 User=promtact
-Group=adm
+Group=promtact
+SupplementaryGroups=systemd-journal adm
 ExecStart=/usr/local/sbin/promtact-access-shipper
 EnvironmentFile=/etc/promtact/access-shipper.env
 Restart=always
