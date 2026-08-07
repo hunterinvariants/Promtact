@@ -62,20 +62,36 @@ $binPath = "`"$BinaryPath`" $arguments"
 
 if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
   Write-Host "Replacing the existing $ServiceName service."
-  sc.exe stop $ServiceName | Out-Null
-  Start-Sleep -Seconds 2
-  sc.exe delete $ServiceName | Out-Null
+  Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+  sc.exe delete $ServiceName
   Start-Sleep -Seconds 2
 }
 
-sc.exe create $ServiceName binPath= $binPath start= auto DisplayName= "Promtact Agent" | Out-Null
-sc.exe description $ServiceName "Forwards selected Windows event log records to Promtact." | Out-Null
+# New-Service rather than sc.exe: quoting a binary path that contains spaces
+# through sc.exe from PowerShell is unreliable, and a service created with a
+# mangled path fails at start with a message nobody connects to quoting.
+New-Service -Name $ServiceName `
+  -BinaryPathName $binPath `
+  -DisplayName "Promtact Agent" `
+  -Description "Forwards selected Windows event log records to Promtact." `
+  -StartupType Automatic | Out-Null
 
 # Restart on failure rather than giving up: a collector that stops collecting
-# silently is worse than one that is plainly absent.
-sc.exe failure $ServiceName reset= 86400 actions= restart/10000/restart/30000/restart/60000 | Out-Null
+# silently is worse than one that is plainly absent. Output is not suppressed —
+# swallowing it is how a failure here looks like success.
+sc.exe failure $ServiceName reset= 86400 actions= restart/10000/restart/30000/restart/60000
 
-sc.exe start $ServiceName | Out-Null
+try {
+  Start-Service -Name $ServiceName -ErrorAction Stop
+} catch {
+  Write-Host ""
+  Write-Host "The service was created but would not start." -ForegroundColor Red
+  Write-Host "Command line it was given:"
+  Write-Host "  $binPath"
+  Write-Host ""
+  Write-Host "Check the agent runs by hand with the same arguments, then reinstall."
+  throw
+}
 Start-Sleep -Seconds 3
 
 $service = Get-Service -Name $ServiceName
