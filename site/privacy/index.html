@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Promtact</title>
+<meta name="description" content="What Promtact processes, where it is kept, how long, and who can reach it.">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="site">
+  <a class="brand" href="/">Promtact</a>
+  <nav>
+    <a href="/security/">Security</a>
+    <a href="/privacy/">Privacy</a>
+    <a href="https://github.com/hunterinvariants/Promtact">Source</a>
+  </nav>
+</header>
+
+<h1>Privacy</h1>
+<p class="updated">Last reviewed 7 August 2026</p>
+
+<p class="lede">What Promtact processes, where it is kept, how long, and who can
+reach it.</p>
+
+<h2>Two situations, two answers</h2>
+
+<p><strong>Self-hosted.</strong> You run the binary on your own infrastructure.
+All data stays there. Promtact receives nothing: no telemetry, no phone home, no
+licence check that transmits usage.</p>
+
+<p><strong>Hosted.</strong> Promtact operates the service on your behalf and is
+a processor: your data is processed to provide the service and on your
+documented instructions.</p>
+
+<h2>What the system sees</h2>
+
+<p>Promtact inspects agent tool calls, so it stores the timestamp, the tenant,
+the machine and account making the call, the source address, the tool name, and
+the call's arguments.</p>
+
+<div class="note">
+<strong>The honest part:</strong> a tool call's arguments are whatever the agent
+passed — a query, a file path, an email body, a customer record. Promtact cannot
+know in advance what your agents handle, so it must be assumed that this field
+can contain personal data.
+<br><br>
+This is inherent to the function: a control that decides whether a call may
+proceed has to see the call. What follows is that <em>retention</em> and
+<em>access control</em> are the real protections, not a claim that nothing
+sensitive is processed.
+</div>
+
+<h2>Retention</h2>
+
+<p>Events, alerts, response actions and audit records are deleted after the
+retention window, <strong>30 days by default</strong> and configurable per
+deployment. Deletion is by age; there is no separate archive.</p>
+
+<p>Tenant accounts, their users and API key hashes are kept until the tenant is
+deleted, as is the audit chain state — discarding it would break the
+tamper-evidence of everything remaining.</p>
+
+<h2>Encryption</h2>
+
+<p><strong>In transit:</strong> TLS terminates at Cloudflare and reaches the
+origin over an outbound-only tunnel. The service binds to loopback and is not
+directly reachable.</p>
+
+<p><strong>At rest:</strong> values that are verifiers — API keys, recovery
+codes — are stored only as hashes and cannot be recovered. Values that must be
+readable to work, currently only TOTP seeds, are sealed with envelope
+encryption: a per-record key wrapped by a key held outside the database.</p>
+
+<div class="plain">
+<strong>Not switched on in the hosted deployment.</strong> Envelope encryption is
+opt-in and is currently not enabled there. Full-database encryption at rest is a
+property of the underlying storage and is not provided by Promtact.
+</div>
+
+<h2>Location and sub-processors</h2>
+
+<table>
+<tr><th>Provider</th><th>Purpose</th><th>What it reaches</th></tr>
+<tr><td>Cloudflare</td><td>TLS, tunnel, alert receiver</td><td>Request metadata in transit; alert summaries</td></tr>
+<tr><td>Hosting provider</td><td>Virtual machine and storage</td><td>Everything, at the infrastructure layer</td></tr>
+</table>
+
+<p>The hosted deployment runs on a single virtual machine in Europe, with the
+database on the same host. Integrations you configure yourself — a webhook, a
+ticket system, a SIEM — are your choice and your relationship, not
+sub-processors of Promtact.</p>
+
+<h2>Your rights</h2>
+
+<p>For the hosted service you are the controller and Promtact assists as
+processor: locating records for an identified person, correcting them, or
+deleting them ahead of the retention window.</p>
+
+<p>Because tool call arguments are free-form, a deletion request may require
+searching those fields rather than a keyed lookup. That is slower, and saying so
+is more useful than implying a clean index exists.</p>
+
+<h2>Contact</h2>
+
+<p>Data protection enquiries: <strong>privacy@promtact.com</strong><br>
+Security reports: see <a href="/security/">Security</a>.</p>
+
+<p>The full version of this document, kept with the code and updated alongside
+it, is
+<a href="https://github.com/hunterinvariants/Promtact/blob/main/docs/data-protection.md">docs/data-protection.md</a>.</p>
+
+<footer class="site">
+  <p>Promtact — <a href="https://github.com/hunterinvariants/Promtact">source on GitHub</a></p>
+  <p>Security reports: <a href="/.well-known/security.txt">security.txt</a></p>
+</footer>
+
+</div>
+</body>
+</html>

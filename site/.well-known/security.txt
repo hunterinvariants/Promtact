@@ -1,0 +1,11 @@
+# Promtact — vulnerability reporting, per RFC 9116.
+# Reports go through GitHub's private advisories so the thread stays private
+# until a fix exists.
+
+Contact: https://github.com/hunterinvariants/Promtact/security/advisories/new
+Contact: mailto:security@promtact.com
+Expires: 2027-08-07T00:00:00.000Z
+Preferred-Languages: en, de
+Canonical: https://promtact.com/.well-known/security.txt
+Policy: https://github.com/hunterinvariants/Promtact/blob/main/SECURITY.md
+Acknowledgments: https://github.com/hunterinvariants/Promtact/blob/main/SECURITY.md

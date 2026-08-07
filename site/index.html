@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Promtact — enforcement for AI agent tool calls</title>
+<meta name="description" content="Promtact decides, per tool call, whether an AI agent may proceed: allow, hold for a human, or refuse.">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="site">
+  <a class="brand" href="/">Promtact</a>
+  <nav>
+    <a href="/security/">Security</a>
+    <a href="/privacy/">Privacy</a>
+    <a href="https://github.com/hunterinvariants/Promtact">Source</a>
+  </nav>
+</header>
+
+<h1>An agent that can call tools can be talked into calling the wrong one.</h1>
+
+<p class="lede">Promtact sits in front of those calls and decides, per call,
+whether it happens: allow, hold for a human, or refuse.</p>
+
+<p>It is a policy enforcement point for AI agent tool calls, plus the telemetry
+and audit trail needed to answer <em>what did the agent do, and who let it</em>
+afterwards. It speaks MCP, so it can be placed in front of an existing MCP
+server without changing the agent.</p>
+
+<p>It contains no exploit logic and nothing that attacks a target.</p>
+
+<h2>What makes it different</h2>
+
+<p><strong>The decision happens before the call, not after it.</strong>
+Detection that reports what an agent already did is a log, not a control. The
+cost is real and stated: every tool call has this service in its latency path.</p>
+
+<p><strong>Denial survives the database going down.</strong> If storage fails,
+decisions keep being made and are written to a local journal, then reconciled on
+recovery. An outage must not become an open door.</p>
+
+<p><strong>The operator is not exempt.</strong> Direct database access is
+announced before it is taken, observed independently through the database's own
+logs, and reconciled — a session nobody announced becomes a finding. The audit
+chain's head is published to a witness outside the host, so history cannot be
+rewritten unnoticed. See <a href="/security/">Security</a>.</p>
+
+<h2>Verify rather than believe</h2>
+
+<p>Each claim in
+<a href="https://github.com/hunterinvariants/Promtact/blob/main/docs/technical-claims.md">technical-claims.md</a>
+carries the command that checks it, and states its own limits. Where a control
+does not do something, that is written down next to what it does.</p>
+
+<footer class="site">
+  <p>Promtact — <a href="https://github.com/hunterinvariants/Promtact">source on GitHub</a></p>
+  <p>Security reports: <a href="/.well-known/security.txt">security.txt</a></p>
+</footer>
+
+</div>
+</body>
+</html>

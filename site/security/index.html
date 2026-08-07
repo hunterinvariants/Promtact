@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security — Promtact</title>
+<meta name="description" content="How Promtact is secured, what it does not claim, and how to report a vulnerability.">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="site">
+  <a class="brand" href="/">Promtact</a>
+  <nav>
+    <a href="/security/">Security</a>
+    <a href="/privacy/">Privacy</a>
+    <a href="https://github.com/hunterinvariants/Promtact">Source</a>
+  </nav>
+</header>
+
+<h1>Security</h1>
+<p class="updated">Last reviewed 7 August 2026</p>
+
+<p class="lede">This page states what is implemented, what is not, and how to
+report a problem. Where a control is built but not switched on, that is said
+rather than glossed over.</p>
+
+<div class="plain">
+<strong>Not claimed:</strong> no SOC 2 or ISO 27001 certification, no
+third-party penetration test, no contractual uptime commitment. Anyone
+evaluating Promtact should weigh that alongside what follows.
+</div>
+
+<h2>Reporting a vulnerability</h2>
+
+<p>Use GitHub's private vulnerability reporting on the repository —
+<em>Security → Report a vulnerability</em>. That opens a private thread with the
+maintainer.</p>
+
+<table>
+<tr><th>Stage</th><th>Target</th></tr>
+<tr><td>Acknowledgement</td><td>3 business days</td></tr>
+<tr><td>Triage and severity</td><td>7 business days</td></tr>
+<tr><td>Fix for critical or high</td><td>typically 14 days</td></tr>
+<tr><td>Disclosure</td><td>coordinated with the reporter after a fix exists</td></tr>
+</table>
+
+<p>Reporters are credited unless they prefer otherwise. Please allow a
+reasonable window before public disclosure. Full policy in
+<a href="https://github.com/hunterinvariants/Promtact/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+
+<h2>How it is built</h2>
+
+<p><strong>Two direct dependencies.</strong> A Postgres driver and a SAML
+library. Distributed tracing, TOTP and encryption at rest are implemented
+against the standard library rather than by adding packages — the
+authentication path is where a compromised dependency is worth the most to an
+attacker.</p>
+
+<p><strong>Releases are signed</strong> with keyless signing, and each carries
+an SPDX software bill of materials. Verification steps are in
+<a href="https://github.com/hunterinvariants/Promtact/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+
+<p><strong>Controls are pinned by tests</strong> that state the failure they
+prevent, not just the behaviour they expect. A benign ATT&amp;CK-mapped
+validation suite runs hourly against the live deployment and alerts if any
+verdict changes.</p>
+
+<h2>Access control</h2>
+
+<p>Authorisation is central rather than per-handler, so a new endpoint cannot
+forget its own check. The tenant comes from the calling credential and is part
+of the database query, so another customer's record identifier resolves to
+<em>not found</em> instead of confirming that it exists. Identity is resolved on
+every request, so a revoked key stops working on the next call.</p>
+
+<p>Agents authenticate as service accounts and can never hold an interactive
+session, which is what makes a second factor enforceable for people without
+breaking any agent.</p>
+
+<h2>The provider's own access</h2>
+
+<p>This is the part worth reading closely, because it is the part most providers
+leave out.</p>
+
+<p>Direct database access by the operator is <strong>announced</strong> before
+it is taken; the announcement enters the tamper-evident audit chain and is
+published to a witness outside the host. It is <strong>observed</strong>
+independently through the database's own connection log, by a component whose
+credential can do nothing but report. The two are <strong>reconciled</strong>:
+a session with no announcement covering it becomes an audit record and an
+alert.</p>
+
+<p>The audit chain's head is published to that external witness, which refuses a
+chain that got shorter and refuses a different head for an index it already
+recorded. An operator with root can rewrite local history; they cannot make the
+witness agree.</p>
+
+<div class="note">
+<strong>The limit, stated:</strong> none of this <em>prevents</em> an operator
+from reading data. On a single host with one root user, nothing can. It makes
+reading attributable and erasure detectable, and the claim goes no further.
+</div>
+
+<h2>Reading further</h2>
+
+<table>
+<tr><td><a href="https://github.com/hunterinvariants/Promtact/blob/main/docs/technical-claims.md">Technical claims</a></td><td>Each claim with the command that checks it</td></tr>
+<tr><td><a href="https://github.com/hunterinvariants/Promtact/blob/main/docs/threat-model.md">Threat model</a></td><td>What it defends against, and what it does not</td></tr>
+<tr><td><a href="https://github.com/hunterinvariants/Promtact/blob/main/docs/access-control.md">Access control</a></td><td>Who can reach customer data, and what is recorded</td></tr>
+<tr><td><a href="https://github.com/hunterinvariants/Promtact/blob/main/docs/incident-response.md">Incident response</a></td><td>Severity, notification deadlines, recovery</td></tr>
+<tr><td><a href="https://github.com/hunterinvariants/Promtact/blob/main/docs/design-decisions.md">Design decisions</a></td><td>Why it is built this way, including what was rejected</td></tr>
+</table>
+
+<footer class="site">
+  <p>Promtact — <a href="https://github.com/hunterinvariants/Promtact">source on GitHub</a></p>
+  <p>Security reports: <a href="/.well-known/security.txt">security.txt</a></p>
+</footer>
+
+</div>
+</body>
+</html>
