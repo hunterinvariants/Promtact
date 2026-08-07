@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hunterinvariants/promtact/internal/auth"
 	"github.com/hunterinvariants/promtact/internal/domain"
 )
 
@@ -89,6 +90,7 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 		tenant := tenantForPrincipal(principal)
 		toolCall := a.toolCallFromMCPRequest(rpc)
 		toolCall.Tenant = tenant
+		a.identifyMCPSession(r, principal, &toolCall)
 		decision := a.policy.GateToolCall(toolCall)
 		a.recordToolDecision(r, decision.Verdict)
 		a.prepareAlerts(decision.Alerts, tenant)
@@ -228,6 +230,36 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeMCPResponse(w, status, resp)
+}
+
+// identifyMCPSession gives an MCP call something to be attributed to.
+//
+// Without this every MCP call was anonymous, and the session key fell through
+// to a single global bucket shared by the whole deployment. Session marks then
+// applied to everyone: one agent reading one poisoned document would hold the
+// next outward call of every other client, from every other conversation. The
+// control would have looked impressively strict and been indefensible.
+//
+// The identifiers are taken in order of how much they actually distinguish one
+// conversation from another. Mcp-Session-Id is the protocol's own, so it is
+// preferred where a client sends it; the authenticated principal is the floor,
+// and it at least separates one customer's agent from another's.
+func (a *App) identifyMCPSession(r *http.Request, principal auth.Principal, toolCall *domain.ToolCallRequest) {
+	if toolCall.Metadata == nil {
+		toolCall.Metadata = map[string]string{}
+	}
+	for _, header := range []string{"Mcp-Session-Id", "X-Promtact-Session", "X-Session-Id"} {
+		if value := strings.TrimSpace(r.Header.Get(header)); value != "" {
+			toolCall.Metadata["session_id"] = value
+			break
+		}
+	}
+	if name := strings.TrimSpace(principal.Name); name != "" {
+		toolCall.Actor = name
+		if toolCall.AssetID == "" {
+			toolCall.AssetID = "mcp:" + name
+		}
+	}
 }
 
 // mcpResultText pulls the human-readable content out of a JSON-RPC response so

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/hunterinvariants/promtact/internal/auth"
+	"github.com/hunterinvariants/promtact/internal/domain"
 )
 
 // MCP is where a real agent's tools live, so it is where a poisoned result
@@ -124,4 +125,51 @@ func escapeSurrogate(offset int) string {
 	high := 0xD800 + (offset >> 10)
 	low := 0xDC00 + (offset & 0x3FF)
 	return fmt.Sprintf(`\u%04x\u%04x`, high, low)
+}
+
+// TestMCPSessionsAreSeparated pins the isolation that was missing.
+//
+// MCP calls carried no actor and no session, so every one of them fell into a
+// single global bucket. A mark set by one agent reading one poisoned document
+// applied to the next outward call of every other client in the deployment —
+// a control that looks impressively strict and is indefensible.
+func TestMCPSessionsAreSeparated(t *testing.T) {
+	app, err := NewWithOptions(Options{
+		Users: []auth.UserConfig{
+			{Name: "agent-a", TokenHash: auth.HashToken("a"), Roles: []string{auth.RoleOperator}},
+			{Name: "agent-b", TokenHash: auth.HashToken("b"), Roles: []string{auth.RoleOperator}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new app: %v", err)
+	}
+
+	callAs := func(name string, session string) domain.ToolCallRequest {
+		req := httptest.NewRequest(http.MethodPost, "/api/mcp/proxy", strings.NewReader("{}"))
+		if session != "" {
+			req.Header.Set("Mcp-Session-Id", session)
+		}
+		// The principal is passed explicitly: the middleware puts it in the
+		// context, and what is under test here is what identifyMCPSession does
+		// with it, not how it got there.
+		var toolCall domain.ToolCallRequest
+		app.identifyMCPSession(req, auth.Principal{Name: name}, &toolCall)
+		return toolCall
+	}
+
+	first := callAs("agent-a", "")
+	second := callAs("agent-b", "")
+	if first.Actor == "" {
+		t.Fatal("an MCP call is still anonymous; every session would share one bucket")
+	}
+	if first.Actor == second.Actor {
+		t.Errorf("two different clients share the actor %q", first.Actor)
+	}
+
+	// The protocol's own identifier wins where a client sends one, because it
+	// separates conversations rather than merely credentials.
+	withSession := callAs("agent-a", "conversation-7")
+	if withSession.Metadata["session_id"] != "conversation-7" {
+		t.Errorf("session id = %q, want conversation-7", withSession.Metadata["session_id"])
+	}
 }

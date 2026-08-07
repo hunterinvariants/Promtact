@@ -78,6 +78,10 @@ func main() {
 		if err := validateCommand(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
+	case "mcp-tools":
+		if err := mcpToolsCommand(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
 	case "mcp-stub":
 		if err := mcpStubCommand(os.Args[2:]); err != nil {
 			log.Fatal(err)
