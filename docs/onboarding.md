@@ -14,56 +14,51 @@ first thing a competent customer asks.
 
 Everything here runs against the Promtact deployment with an admin credential.
 
-### A1. Create the tenant
-
-**Read the response.** Creating a tenant also creates its first administrator —
-named `<tenant>-admin` unless you pass `admin_name` — and returns that account's
-API key. That key is the customer's console login, and it is shown exactly once.
+### A1. Point the CLI at the deployment
 
 ```bash
-curl -s -X POST "$URL/api/admin/tenants"   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json"   -d '{"tenant":"acme","display_name":"Acme GmbH"}'
+export PROMTACT_ADMIN_TOKEN="$(cat /path/to/admin-token)"
+export PROMTACT_PUBLIC_URL="https://app.promtact.example"
 ```
 
-Discarding this output leaves an account whose key nobody knows, and creating it
-again fails on the unique name. Recovering means issuing a fresh key for the
-existing user — extra work for no reason.
+The public URL is what the customer will type. Without it the CLI prints the
+address it was called on, which is usually loopback and useless to hand over.
 
-The tenant name becomes part of every record and cannot be changed afterwards.
-Use something short and stable: a company slug, not a project name.
-
-### A2. Create the agent account
-
-The tenant already has its person. It still needs a machine identity, and the
-two must not be the same one.
+### A2. Create the tenant
 
 ```bash
-curl -s -X POST "$URL/api/admin/tenants/acme/users"   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json"   -d '{"name":"acme-agent","roles":["ingestor"]}'
+promtactl tenant create --name acme --display "Acme GmbH"
 ```
 
-**This response also carries an API key in clear text, once.** Keys are stored
-only as hashes and cannot be recovered.
+This creates the tenant and its first administrator in one step, and prints the
+console address, the account name and the key. **The key is shown once and
+cannot be recovered** — the command says so, and means it.
 
-Why a second account: the agent's key sits on an endpoint, unattended, where a
-credential should reach exactly as far as its job. An `ingestor` cannot read
-another machine's alerts, cannot approve anything, and cannot provision. If that
-endpoint is compromised, the blast radius is "someone can submit telemetry", not
-"someone owns the tenant".
+The tenant slug becomes part of every record and cannot be changed afterwards.
+Use something short and permanent: a company slug, not a project name.
 
-Account names are unique across the whole deployment rather than per tenant:
-login resolves a name to exactly one account, and two `admin` users in different
-tenants would be ambiguous. Prefix them with the tenant, as `acme-admin` does.
-
-### A2b. If a key is lost
-
-Issue a replacement for the existing user rather than recreating it:
+### A3. Create the agent account
 
 ```bash
-curl -s "$URL/api/admin/tenants/acme/users" -H "Authorization: Bearer $ADMIN_TOKEN"
-
-curl -s -X POST "$URL/api/admin/tenants/acme/keys"   -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json"   -d '{"user_id":"usr-...","name":"replacement"}'
+promtactl tenant add-agent --tenant acme
 ```
 
-### A3. Hand over
+Prints the endpoint credential. It may submit telemetry and nothing else: it
+cannot read alerts, approve actions, or provision. That matters because this key
+sits unattended on a customer machine — if that machine is compromised, the
+blast radius is "someone can submit telemetry", not "someone owns the tenant".
+
+### A4. If something needs checking or a key is lost
+
+```bash
+promtactl tenant list
+promtactl tenant new-key --tenant acme --user acme-agent
+```
+
+Issuing a new key does not revoke the old ones. Revoke them separately if the
+old key may be in the wrong hands.
+
+### A5. Hand over
 
 Send the customer:
 
@@ -75,12 +70,13 @@ Send the customer:
 Sending both keys in one message means one intercepted message is the whole
 tenant.
 
-### A4. Confirm it arrived
+### A6. Confirm it arrived
 
 After the customer has finished, check that the tenant is actually reporting:
 
 ```bash
-curl -s "$URL/api/admin/tenants/acme/usage" -H "Authorization: Bearer $ADMIN_TOKEN"
+promtactl tenant list
+curl -s "$PROMTACT_URL/api/admin/tenants/acme/usage"   -H "Authorization: Bearer $PROMTACT_ADMIN_TOKEN"
 ```
 
 An empty result an hour after installation means the agent is not sending, and
