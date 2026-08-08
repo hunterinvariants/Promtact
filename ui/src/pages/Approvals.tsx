@@ -7,14 +7,14 @@ import { Badge, Empty, Panel } from "../components";
 // Until this page existed the gateway could hold a tool call and nobody could
 // see it: the API had returned the pending action all along, and no screen ever
 // asked for it. An agent stopped mid-task and the console showed a quiet
-// dashboard — which is the worst failure available to a control of this kind,
+// dashboard - which is the worst failure available to a control of this kind,
 // because it looks like nothing is happening in both the working case and the
 // broken one.
 //
 // The question this page has to answer is not "what is pending". It is "why is
 // this pending, and can I let it through". For an injection chain that means
 // naming the thing the agent read before it tried to act, because the action
-// itself always looks reasonable — that is what makes the attack work.
+// itself always looks reasonable - that is what makes the attack work.
 
 type Action = {
   id: string;
@@ -34,13 +34,13 @@ const FINDING_LABELS: Record<string, string> = {
   hidden_unicode:
     "The content contained characters that render as nothing. A person reviewing that page would not have seen the text a model reads.",
   image_exfiltration:
-    "The content embedded an image address carrying a query string — the usual shape of data leaving without anyone clicking.",
+    "The content embedded an image address carrying a query string - the usual shape of data leaving without anyone clicking.",
   instruction_override:
     "The content told its reader to disregard earlier instructions. Documents do not normally address their reader that way.",
   hidden_markup:
     "The content hid text using markup that renders to nothing, and that text spoke to a model rather than to a reader.",
   addresses_model:
-    "The content spoke to a model rather than to a reader. On its own this is weak — documentation about AI reads like this too.",
+    "The content spoke to a model rather than to a reader. On its own this is weak - documentation about AI reads like this too.",
   encoded_blob: "The content held a long encoded run, which is how text gets past a reader but not past a decoder.",
 };
 
@@ -148,7 +148,7 @@ export default function Approvals() {
                 // Two sources, because a held call and the fetch that caused it
                 // are different records. `result_taint` is on the call that read
                 // the content; a call held for acting afterwards carries the
-                // marks inside its own signals instead — and that is precisely
+                // marks inside its own signals instead - and that is precisely
                 // the case this page exists to explain.
                 const taint = [
                   ...(meta.result_taint || "").split(",").filter(Boolean),
@@ -164,9 +164,9 @@ export default function Approvals() {
                         <div style={{ fontWeight: 500 }}>{meta.tool || action.type || "tool call"}</div>
                         <div className="panel-note">{action.reason || "held for approval"}</div>
                       </td>
-                      <td className="mono">{action.asset_id || action.target || "—"}</td>
+                      <td className="mono">{action.asset_id || action.target || "-"}</td>
                       <td className="num panel-note">
-                        {action.created_at ? new Date(action.created_at).toLocaleString() : "—"}
+                        {action.created_at ? new Date(action.created_at).toLocaleString() : "-"}
                       </td>
                       <td>
                         <button
@@ -278,11 +278,11 @@ export default function Approvals() {
                             : "warning"
                       }
                     >
-                      {action.execution_status || action.approval_status || "—"}
+                      {action.execution_status || action.approval_status || "-"}
                     </Badge>
                   </td>
                   <td className="num panel-note">
-                    {action.created_at ? new Date(action.created_at).toLocaleString() : "—"}
+                    {action.created_at ? new Date(action.created_at).toLocaleString() : "-"}
                   </td>
                 </tr>
               ))}

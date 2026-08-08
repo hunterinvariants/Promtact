@@ -163,6 +163,36 @@ func (a *App) assuranceFor(principal auth.Principal) *domain.Assurance {
 		assurance.ShipperLastSeen = &last
 	}
 
+	// Session marks: reported by the engine and, until now, shown nowhere. If
+	// they stop being written the control degrades silently and the next
+	// restart releases every marked session at once.
+	assurance.SessionMarkError = a.policy.TaintStoreError()
+	assurance.SessionMarksDurable = a.policyPath != "" || a.store.PersistenceMode() != "memory"
+	if assurance.SessionMarkError != "" {
+		assurance.SessionMarksDurable = false
+	}
+
+	// A policy that failed to load falls back to built-in defaults, which is a
+	// different policy than the operator wrote and looks the same from outside.
+	assurance.PolicyPath = a.policyPath
+	assurance.PolicyLoaded = a.policyPath != ""
+	if document, err := a.loadPolicyDocument(); err == nil {
+		assurance.ApprovedTools = len(stringsFromDocument(document, "approved_tools"))
+		assurance.ApprovedEgress = len(stringsFromDocument(document, "approved_egress_hosts"))
+	} else {
+		assurance.PolicyLoaded = false
+	}
+
+	assurance.MCPUpstream = a.gatewayMCPUpstream()
+
+	// Calls waiting on a person are agents stopped mid-task. A queue nobody
+	// watches is an outage that reports itself as healthy.
+	for _, action := range a.listActionsForTenant(tenantForPrincipal(principal)) {
+		if action.ApprovalStatus == "required" && action.ExecutionStatus == "" {
+			assurance.ApprovalsWaiting++
+		}
+	}
+
 	if a.witness.enabled() {
 		witnessed, diverged, _ := a.witness.status()
 		assurance.WitnessConfigured = true

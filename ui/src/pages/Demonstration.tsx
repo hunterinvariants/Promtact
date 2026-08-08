@@ -126,7 +126,7 @@ export default function Demonstration({ onNavigate }: { onNavigate?: (page: any)
         </p>
         <p style={{ maxWidth: "78ch" }}>
           The agent is deliberately credulous: it does whatever a document tells
-          it to. That is the assumption rather than a shortcut — a control worth
+          it to. That is the assumption rather than a shortcut - a control worth
           buying is one that holds when the model is fooled, not one that hopes
           it will not be.
         </p>
@@ -153,10 +153,10 @@ export default function Demonstration({ onNavigate }: { onNavigate?: (page: any)
                   {doc.bytes} bytes on disk, {doc.visible_runes} characters visible
                   {doc.hidden_runes > 0 ? (
                     <>
-                      {" "}— and <strong>{doc.hidden_runes} characters that render as nothing at all</strong>.
+                      {" "}- and <strong>{doc.hidden_runes} characters that render as nothing at all</strong>.
                     </>
                   ) : (
-                    <> — nothing hidden.</>
+                    <> - nothing hidden.</>
                   )}
                 </div>
               </div>
@@ -207,7 +207,7 @@ export default function Demonstration({ onNavigate }: { onNavigate?: (page: any)
       >
         {outboxAfterDirect ? (
           outboxAfterDirect.length === 0 ? (
-            <Empty>Empty — run step 2 first.</Empty>
+            <Empty>Empty - run step 2 first.</Empty>
           ) : (
             outboxAfterDirect.map((message) => (
               <pre key={message.name} className="event-detail mono" style={{ whiteSpace: "pre-wrap" }}>
@@ -240,7 +240,7 @@ export default function Demonstration({ onNavigate }: { onNavigate?: (page: any)
       <StepCard
         number={5}
         title="What left this time"
-        says="The poisoned document never reached the agent, so there was no instruction to obey — and the onward call is waiting for a person."
+        says="The poisoned document never reached the agent, so there was no instruction to obey - and the onward call is waiting for a person."
         action="Open the outbox"
         busy={busy === "outbox2"}
         error={errors.outbox2}
@@ -286,7 +286,7 @@ export default function Demonstration({ onNavigate }: { onNavigate?: (page: any)
                 {[...audit].reverse().map((record) => (
                   <tr key={record.id}>
                     <td className="mono" style={{ width: "24%" }}>
-                      {(record.metadata || {}).tool || "—"}
+                      {(record.metadata || {}).tool || "-"}
                     </td>
                     <td style={{ width: 130 }}>
                       <Badge tone={outcomeTone(record.outcome === "pending_approval" ? "held" : record.outcome)}>
@@ -294,7 +294,7 @@ export default function Demonstration({ onNavigate }: { onNavigate?: (page: any)
                       </Badge>
                     </td>
                     <td className="panel-note">
-                      {(record.metadata || {}).result_reason || (record.metadata || {}).reason || "—"}
+                      {(record.metadata || {}).result_reason || (record.metadata || {}).reason || "-"}
                     </td>
                   </tr>
                 ))}
@@ -309,7 +309,7 @@ export default function Demonstration({ onNavigate }: { onNavigate?: (page: any)
       <StepCard
         number={7}
         title="Why you can believe that record"
-        says="An audit trail is only worth as much as its resistance to being edited afterwards — including by whoever runs the server."
+        says="An audit trail is only worth as much as its resistance to being edited afterwards - including by whoever runs the server."
         action="Verify"
         busy={busy === "chain"}
         error={errors.chain}
@@ -326,7 +326,7 @@ export default function Demonstration({ onNavigate }: { onNavigate?: (page: any)
             <p>
               {chain.valid
                 ? `The chain is intact: all ${chain.linked} records still hash to the one before.`
-                : "The chain does not verify — a record has been changed or removed."}
+                : "The chain does not verify - a record has been changed or removed."}
             </p>
             {witness?.configured ? (
               <p>
@@ -347,7 +347,7 @@ export default function Demonstration({ onNavigate }: { onNavigate?: (page: any)
               <p style={{ fontWeight: 500, maxWidth: "78ch" }}>
                 That is the part worth taking away. Even an administrator with
                 full access to this server and its database cannot quietly remove
-                a decision from this record — the witness already holds an earlier
+                a decision from this record - the witness already holds an earlier
                 head and refuses a chain that got shorter or changed.
               </p>
             ) : null}

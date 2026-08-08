@@ -91,7 +91,7 @@ export function verdictTone(verdict: string): Tone {
 export type TrendPoint = { time: string; passed: number; total: number };
 
 /**
- * Detection coverage over time — one series, so the title carries identity and
+ * Detection coverage over time - one series, so the title carries identity and
  * no legend box is needed. Hover exposes the exact run.
  */
 export function CoverageTrend({ history }: { history: TrendPoint[] }) {

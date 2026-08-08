@@ -6,28 +6,28 @@
 :root {
   color-scheme: light;
 
-  --surface-1: #fcfcfb;
-  --page-plane: #f9f9f7;
+  --surface-1: #ffffff;
+  --page-plane: #eef2f6;
   --surface-raised: #ffffff;
-  --sidebar: #14140f;
-  --sidebar-ink: #e9e8e0;
-  --sidebar-ink-muted: #a3a199;
+  --sidebar: #0d141c;
+  --sidebar-ink: #dbe4ed;
+  --sidebar-ink-muted: #8697a8;
 
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
+  --text-primary: #0d141c;
+  --text-secondary: #47576a;
+  --text-muted: #75879a;
 
-  --gridline: #e1e0d9;
-  --baseline: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
+  --gridline: #dde4ec;
+  --baseline: #b9c5d2;
+  --border: rgba(13, 20, 28, 0.13);
 
-  --accent: #2a78d6;
-  --accent-soft: rgba(42, 120, 214, 0.1);
+  --accent: #2563c4;
+  --accent-soft: rgba(37, 99, 196, 0.09);
 
-  --status-good: #0ca30c;
-  --status-warning: #fab219;
-  --status-serious: #ec835a;
-  --status-critical: #d03b3b;
+  --status-good: #1f8a5c;
+  --status-warning: #b8801a;
+  --status-serious: #c96a30;
+  --status-critical: #c33b3b;
 
   --radius: 10px;
   --radius-sm: 6px;
@@ -39,37 +39,49 @@
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --surface-1: #1a1a19;
-    --page-plane: #0d0d0d;
-    --surface-raised: #212120;
-    --sidebar: #101010;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --gridline: #2c2c2a;
-    --baseline: #383835;
-    --border: rgba(255, 255, 255, 0.1);
-    --accent: #3987e5;
-    --accent-soft: rgba(57, 135, 229, 0.16);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+    --surface-1: #151c24;
+    --page-plane: #0c1219;
+    --surface-raised: #1b2530;
+    --sidebar: #090e14;
+    --sidebar-ink: #dbe4ed;
+    --sidebar-ink-muted: #7d8d9e;
+    --text-primary: #e8eef5;
+    --text-secondary: #9db0c4;
+    --text-muted: #6b7d90;
+    --gridline: #232f3c;
+    --baseline: #33424f;
+    --border: rgba(219, 228, 237, 0.11);
+    --accent: #4d90f0;
+    --accent-soft: rgba(77, 144, 240, 0.15);
+    --status-good: #3aa87a;
+    --status-warning: #d6a03a;
+    --status-serious: #dd8350;
+    --status-critical: #e05555;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --surface-1: #1a1a19;
-  --page-plane: #0d0d0d;
-  --surface-raised: #212120;
-  --sidebar: #101010;
-  --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
-  --gridline: #2c2c2a;
-  --baseline: #383835;
-  --border: rgba(255, 255, 255, 0.1);
-  --accent: #3987e5;
-  --accent-soft: rgba(57, 135, 229, 0.16);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+  --surface-1: #151c24;
+  --page-plane: #0c1219;
+  --surface-raised: #1b2530;
+  --sidebar: #090e14;
+  --sidebar-ink: #dbe4ed;
+  --sidebar-ink-muted: #7d8d9e;
+  --text-primary: #e8eef5;
+  --text-secondary: #9db0c4;
+  --text-muted: #6b7d90;
+  --gridline: #232f3c;
+  --baseline: #33424f;
+  --border: rgba(219, 228, 237, 0.11);
+  --accent: #4d90f0;
+  --accent-soft: rgba(77, 144, 240, 0.15);
+  --status-good: #3aa87a;
+  --status-warning: #d6a03a;
+  --status-serious: #dd8350;
+  --status-critical: #e05555;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -700,7 +712,7 @@ tbody tr:hover {
 /* ---------- Assurance strip ----------
    Whether the record of those decisions can be trusted. Each item states a fact
    rather than only a colour, so it stays legible to someone who does not know
-   the palette — and to someone who cannot distinguish red from green. */
+   the palette - and to someone who cannot distinguish red from green. */
 
 .assurance {
   display: grid;
@@ -1319,8 +1331,8 @@ tr.is-clickable:hover td { cursor: pointer; }
 
 /* Label left, value right, everywhere rather than in three named places.
    Three components had grid styling scoped to their own wrapper, so every dl
-   added since fell back to the browser default — dt on one line, dd indented
-   under it — and read as a staircase. */
+   added since fell back to the browser default - dt on one line, dd indented
+   under it - and read as a staircase. */
 .panel dl,
 .modal-body dl {
   margin: 0;
@@ -1385,7 +1397,7 @@ tr.is-clickable:hover td { cursor: pointer; }
 }
 
 /* Identifiers, hashes, timestamps and tool names. These are the columns an
-   analyst scans, and in a proportional face they blur into prose — the record
+   analyst scans, and in a proportional face they blur into prose - the record
    id in particular disappeared entirely. */
 .mono,
 td.num,
@@ -1481,4 +1493,37 @@ tr.row-incident {
   text-transform: uppercase;
   color: var(--text-muted);
   margin-bottom: 2px;
+}
+
+/* The toggle fills its card.
+   Equal-height cards left the button covering only its own text, so the space
+   below it was dead: the card looked clickable, most of it was not, and the
+   obvious conclusion was that the page does nothing. */
+.health-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.health-card-toggle {
+  flex: 1;
+  align-items: start;
+}
+
+/* What established a component's status, on the card face rather than behind a
+   click. Hidden, it answered a question nobody could tell was answerable. */
+.health-basis {
+  display: block;
+  margin-top: 5px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  max-width: 60ch;
+}
+
+.health-banner-note {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 90ch;
 }

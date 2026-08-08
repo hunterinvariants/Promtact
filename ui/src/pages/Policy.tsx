@@ -168,7 +168,7 @@ export default function Policy() {
 
       <ListEditor
         title="Tools agents may call"
-        says="A call to anything not on this list is refused before it reaches the tool. Removing one stops agents using it from the next call onward — they will see a refusal, not a failure."
+        says="A call to anything not on this list is refused before it reaches the tool. Removing one stops agents using it from the next call onward - they will see a refusal, not a failure."
         placeholder="tool name, e.g. read_document"
         values={tools}
         onChange={setTools}

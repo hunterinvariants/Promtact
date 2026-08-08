@@ -252,6 +252,28 @@ type Assurance struct {
 	WitnessIndex      int  `json:"witness_index"`
 	WitnessDiverged   bool `json:"witness_diverged"`
 
+	// Session marks decide whether an action following untrusted content needs
+	// a person. If they stop being written, the control degrades in complete
+	// silence: nothing fails, and the next restart releases every marked
+	// session at once. It was reported inside the engine and shown nowhere.
+	SessionMarksDurable bool   `json:"session_marks_durable"`
+	SessionMarkError    string `json:"session_mark_error,omitempty"`
+
+	// A policy that fails to load falls back to built-in defaults, which is a
+	// different policy than the operator wrote and looks identical from outside.
+	PolicyLoaded   bool   `json:"policy_loaded"`
+	PolicyPath     string `json:"policy_path,omitempty"`
+	ApprovedTools  int    `json:"approved_tools"`
+	ApprovedEgress int    `json:"approved_egress"`
+
+	// Calls waiting on a person are agents stopped mid-task. Nobody watching the
+	// queue is an outage that reports itself as healthy.
+	ApprovalsWaiting int `json:"approvals_waiting"`
+
+	// Where gated tool calls are forwarded. Without it the MCP path answers
+	// nothing at all, however healthy everything else looks.
+	MCPUpstream string `json:"mcp_upstream,omitempty"`
+
 	DegradedMode        bool       `json:"degraded_mode"`
 	JournalDepth        int        `json:"journal_depth"`
 	UnannouncedSessions int        `json:"unannounced_sessions"`

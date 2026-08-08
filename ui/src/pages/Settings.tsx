@@ -19,7 +19,7 @@ export default function Settings({ session }: { session: Session | null }) {
             <span className="panel-note" style={{ minWidth: 110 }}>
               Signed in as
             </span>
-            <strong>{principal?.name || "—"}</strong>
+            <strong>{principal?.name || "-"}</strong>
           </div>
           <div className="row">
             <span className="panel-note" style={{ minWidth: 110 }}>
@@ -43,7 +43,7 @@ export default function Settings({ session }: { session: Session | null }) {
             <span className="panel-note" style={{ minWidth: 110 }}>
               Session mode
             </span>
-            <span className="mono">{session?.mode || "—"}</span>
+            <span className="mono">{session?.mode || "-"}</span>
           </div>
         </div>
       </Panel>
@@ -54,25 +54,25 @@ export default function Settings({ session }: { session: Session | null }) {
             <span className="panel-note" style={{ minWidth: 110 }}>
               Version
             </span>
-            <span className="mono">{status?.version || "—"}</span>
+            <span className="mono">{status?.version || "-"}</span>
           </div>
           <div className="row">
             <span className="panel-note" style={{ minWidth: 110 }}>
               Instance
             </span>
-            <span className="mono">{status?.instance_name || "—"}</span>
+            <span className="mono">{status?.instance_name || "-"}</span>
           </div>
           <div className="row">
             <span className="panel-note" style={{ minWidth: 110 }}>
               Tenant isolation
             </span>
-            <span className="mono">{status?.tenant_isolation || "—"}</span>
+            <span className="mono">{status?.tenant_isolation || "-"}</span>
           </div>
           <div className="row">
             <span className="panel-note" style={{ minWidth: 110 }}>
               Tenants
             </span>
-            <span className="num">{status?.tenant_count ?? "—"}</span>
+            <span className="num">{status?.tenant_count ?? "-"}</span>
           </div>
         </div>
       </Panel>

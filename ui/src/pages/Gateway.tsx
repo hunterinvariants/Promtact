@@ -52,7 +52,7 @@ function describe(decision: Decision): { label: string; tone: "good" | "warning"
     return { label: "waiting for a person", tone: "warning" };
   }
   if (execution === "executed") return { label: "allowed", tone: "neutral" };
-  return { label: execution || decision.approval_status || "—", tone: "neutral" };
+  return { label: execution || decision.approval_status || "-", tone: "neutral" };
 }
 
 export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => void }) {
@@ -149,8 +149,8 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
               <dt>Chain</dt>
               <dd>
                 {chain.valid
-                  ? `intact — all ${chain.linked} records still hash to the one before`
-                  : "BROKEN — a record has been changed or removed"}
+                  ? `intact - all ${chain.linked} records still hash to the one before`
+                  : "BROKEN - a record has been changed or removed"}
               </dd>
             </div>
             {witness?.configured ? (
@@ -158,7 +158,7 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
                 <dt>External witness</dt>
                 <dd>
                   {witness.diverged
-                    ? `diverged — the witness holds record ${witness.witnessed_index}, this server does not`
+                    ? `diverged - the witness holds record ${witness.witnessed_index}, this server does not`
                     : witness.agrees
                       ? `agrees at record ${witness.witnessed_index}`
                       : `configured, holding record ${witness.witnessed_index}`}
@@ -168,7 +168,7 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
               <div>
                 <dt>External witness</dt>
                 <dd>
-                  not configured — this chain detects accidental corruption only.
+                  not configured - this chain detects accidental corruption only.
                   Anyone who can write to the database can recompute every hash.
                 </dd>
               </div>
@@ -179,7 +179,7 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
         )}
         <p className="panel-note">
           With a witness, an operator cannot quietly edit this record even with
-          full access to the server and its database — the witness already holds
+          full access to the server and its database - the witness already holds
           an earlier head and refuses a chain that got shorter or changed.
         </p>
       </Panel>
@@ -215,23 +215,23 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
                     {/* The row is marked by what happened; the badge says what
                         was done about it. Colouring a stopped attack green
                         alone reads as "nothing to see", and colouring it red
-                        alone reads as "the product failed" — an attack did
+                        alone reads as "the product failed" - an attack did
                         occur and it was contained, and those are two facts. */}
                     <tr
                       className={`is-clickable${meta.result_findings ? " row-incident" : ""}`}
                       onClick={() => setOpened(decision)}
                     >
                       <td className="num panel-note" style={{ whiteSpace: "nowrap" }}>
-                        {decision.created_at ? new Date(decision.created_at).toLocaleString() : "—"}
+                        {decision.created_at ? new Date(decision.created_at).toLocaleString() : "-"}
                       </td>
-                      <td className="mono">{meta.agent_id || meta.actor || "—"}</td>
-                      <td className="mono">{meta.tool || decision.type || "—"}</td>
+                      <td className="mono">{meta.agent_id || meta.actor || "-"}</td>
+                      <td className="mono">{meta.tool || decision.type || "-"}</td>
                       <td>
                         <Badge tone={outcome.tone}>{outcome.label}</Badge>
                       </td>
-                      <td className="panel-note">{meta.result_reason || decision.reason || "—"}</td>
+                      <td className="panel-note">{meta.result_reason || decision.reason || "-"}</td>
                       <td className="mono panel-note" style={{ whiteSpace: "nowrap" }}>
-                        {decision.id ? decision.id.slice(0, 22) : "—"}
+                        {decision.id ? decision.id.slice(0, 22) : "-"}
                       </td>
                     </tr>
                   </Fragment>

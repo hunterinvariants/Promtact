@@ -92,7 +92,7 @@ export default function Tenants() {
             <div className="callout">
               <span aria-hidden="true">!</span>
               <span>
-                Copy this API key now — it is shown once and cannot be recovered. Hand it to the customer over a secure
+                Copy this API key now - it is shown once and cannot be recovered. Hand it to the customer over a secure
                 channel.
               </span>
             </div>
@@ -178,7 +178,7 @@ export default function Tenants() {
                   </td>
                   <td>{tenant.plan}</td>
                   <td className="num panel-note">
-                    {tenant.created_at ? new Date(tenant.created_at).toLocaleDateString() : "—"}
+                    {tenant.created_at ? new Date(tenant.created_at).toLocaleDateString() : "-"}
                   </td>
                   <td>
                     <div className="row" style={{ justifyContent: "flex-end", gap: 6 }}>

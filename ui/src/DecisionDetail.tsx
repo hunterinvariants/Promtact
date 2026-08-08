@@ -4,7 +4,7 @@ import { useEffect } from "react";
 //
 // What came back, what the agent then wanted to do, what the gateway decided
 // and on what grounds, and the record it sits on. That order is the causality,
-// and a JSON dump does not have it — a reader has to reconstruct the argument
+// and a JSON dump does not have it - a reader has to reconstruct the argument
 // themselves and mostly does not bother.
 //
 // The hidden instruction is shown decoded and marked. An analyst is used to
@@ -55,7 +55,7 @@ export default function DecisionDetail({
   const hiddenText = meta.evidence_hidden_text;
   const hiddenCount = meta.evidence_hidden_unicode;
   const outcome =
-    meta.result_reason || decision.reason || decision.execution_status || decision.approval_status || "—";
+    meta.result_reason || decision.reason || decision.execution_status || decision.approval_status || "-";
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -146,7 +146,7 @@ export default function DecisionDetail({
                 On the request: <strong>{meta.verdict}</strong>
                 {meta.risk ? ` · risk ${meta.risk}` : ""}
                 {decision.execution_status === "withheld"
-                  ? " — the call itself was unremarkable. What came back was not."
+                  ? " - the call itself was unremarkable. What came back was not."
                   : ""}
               </p>
             ) : null}

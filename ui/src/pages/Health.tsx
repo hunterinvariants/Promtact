@@ -5,7 +5,7 @@ import { api } from "../api";
 // top, then the parts that make it up.
 //
 // Each component states a fact next to its colour. A board of green squares
-// tells you nothing when it turns amber — you still have to go and find out
+// tells you nothing when it turns amber - you still have to go and find out
 // what "amber" meant.
 
 type Component = {
@@ -15,10 +15,10 @@ type Component = {
   detail: string;
   // What a card reveals when opened: the numbers you would otherwise fetch by
   // hand. Several components have no page of their own, and inventing a link
-  // that goes nowhere is worse than none — so the detail comes to the card.
+  // that goes nowhere is worse than none - so the detail comes to the card.
   facts: [string, string][];
   // How this component's status was established. "Three of three healthy"
-  // invites exactly one question — checked by what? — and a status page that
+  // invites exactly one question - checked by what? - and a status page that
   // cannot answer it is asking to be believed rather than read.
   checkedBy: string;
   goTo?: { page: string; label: string };
@@ -83,11 +83,25 @@ export default function Health({ onNavigate }: { onNavigate?: (page: any) => voi
         <div className="health-banner-mark" aria-hidden="true" />
         <div>
           <h2>{headline}</h2>
+          {/* The count alone provoked exactly one question - checked how? -
+              and hid the rest: components this account cannot see were counted
+              out of the total, so "3 of 3" was true and said nothing. The
+              summary now names what was checked and what was not visible, and
+              the evidence for each is on its card without a click. */}
           <p>
             {components.filter((c) => c.state === "ok").length} of{" "}
-            {components.filter((c) => c.state !== "off").length} checked components healthy
+            {components.filter((c) => c.state !== "off").length} healthy
+            {components.filter((c) => c.state === "off").length > 0
+              ? `, ${components.filter((c) => c.state === "off").length} not visible to this account`
+              : ""}
             {status?.version ? ` · Promtact ${status.version}` : ""}
             {status?.uptime_seconds != null ? ` · up ${formatUptime(status.uptime_seconds)}` : ""}
+          </p>
+          <p className="health-banner-note">
+            Checked just now against the running service: every audit record
+            re-hashed and compared with the next, the head fetched back from the
+            external witness, the last write to storage and the last delivery to
+            each connector. Each card states what established its own status.
           </p>
         </div>
       </section>
@@ -131,6 +145,7 @@ function HealthCard({ component, onNavigate }: {
           <span className="health-name">{component.name}</span>
           <span className="health-headline">{component.headline}</span>
           <span className="health-detail">{component.detail}</span>
+          <span className="health-basis">{component.checkedBy}</span>
         </span>
         <span className="health-state">{LABELS[component.state]}</span>
         <span className="health-chevron" aria-hidden="true">{open ? "−" : "+"}</span>
@@ -140,10 +155,6 @@ function HealthCard({ component, onNavigate }: {
         <div className="health-facts" id={id}>
           {/* First, because it is the question a status page provokes and
               usually cannot answer. */}
-          <p className="health-checked">
-            <span className="health-checked-label">Established by</span>
-            {component.checkedBy}
-          </p>
           <dl>
             {component.facts.map(([label, value]) => (
               <div key={label}>
@@ -182,9 +193,9 @@ function buildComponents(status: any, validation: any): Component[] {
     facts: [
       ["Decisions in flight", `${status?.gateway_inflight ?? 0} of ${status?.gateway_limit ?? 0}`],
       ["Rejected by backpressure", num(status?.gateway_rejected)],
-      ["Decision latency, p99", status?.gateway_p99_millis != null ? `${status.gateway_p99_millis} ms` : "—"],
+      ["Decision latency, p99", status?.gateway_p99_millis != null ? `${status.gateway_p99_millis} ms` : "-"],
       ["Journal depth", num(a?.journal_depth)],
-      ["Instance", status?.instance_name || "—"],
+      ["Instance", status?.instance_name || "-"],
     ],
     goTo: { page: "overview", label: "See the decision funnel" },
   });
@@ -196,11 +207,11 @@ function buildComponents(status: any, validation: any): Component[] {
     headline: status?.last_storage_error ? "Write failing" : status?.storage_mode || "unknown",
     detail: status?.last_storage_error
       ? String(status.last_storage_error)
-      : `schema version ${status?.schema_version ?? "—"}`,
+      : `schema version ${status?.schema_version ?? "-"}`,
     facts: [
-      ["Mode", status?.storage_mode || "—"],
-      ["Schema version", String(status?.schema_version ?? "—")],
-      ["Tenant isolation", status?.tenant_isolation || "—"],
+      ["Mode", status?.storage_mode || "-"],
+      ["Schema version", String(status?.schema_version ?? "-")],
+      ["Tenant isolation", status?.tenant_isolation || "-"],
       ["Last write error", status?.last_storage_error || "none"],
     ],
   });
@@ -213,7 +224,7 @@ function buildComponents(status: any, validation: any): Component[] {
     detail: a ? `${a.audit_chain_index.toLocaleString()} records linked` : "platform operator only",
     facts: [
       ["Records linked", num(a?.audit_chain_index)],
-      ["Head", a?.audit_chain_head ? String(a.audit_chain_head).slice(0, 24) + "…" : "—"],
+      ["Head", a?.audit_chain_head ? String(a.audit_chain_head).slice(0, 24) + "…" : "-"],
       ["Validates", a?.audit_chain_valid ? "yes" : "no"],
     ],
   });
@@ -234,7 +245,7 @@ function buildComponents(status: any, validation: any): Component[] {
         ? `witnessed at index ${a.witness_index.toLocaleString()}`
         : "history is anchored locally only, which does not protect against an operator",
     facts: [
-      ["Witnessed index", a?.witness_configured ? num(a.witness_index) : "—"],
+      ["Witnessed index", a?.witness_configured ? num(a.witness_index) : "-"],
       ["Local index", num(a?.audit_chain_index)],
       ["Agreement", !a?.witness_configured ? "no witness" : a.witness_diverged ? "diverged" : "agrees"],
       ["Protects against", "history being rewritten or truncated by someone with host access"],
@@ -280,11 +291,88 @@ function buildComponents(status: any, validation: any): Component[] {
         ["Techniques held", `${passed} of ${total}`],
         ["Missed", num(validation.missed)],
         ["False positives", num(validation.false_positives)],
-        ["Suite", validation.suite_version || "—"],
+        ["Suite", validation.suite_version || "-"],
       ],
       goTo: { page: "detections", label: "See technique coverage" },
     });
   }
+
+
+  // The four below are specific to this product rather than to running a
+  // service. Postgres and webhooks are operations; these are the parts whose
+  // failure makes the gateway stop being a control while it still answers.
+
+  list.push({
+    name: "Policy",
+    state: !a ? "off" : a.policy_loaded ? "ok" : "warn",
+    headline: !a
+      ? "Not visible to this account"
+      : a.policy_loaded
+        ? `${a.approved_tools ?? 0} tools approved`
+        : "Running on built-in defaults",
+    detail: a?.policy_loaded
+      ? `${a.approved_egress ?? 0} destinations approved`
+      : "no policy file loaded, so the defaults apply",
+    checkedBy:
+      "The policy file was read and parsed just now. A policy that fails to load falls back to built-in defaults, which is a different policy than the one written and looks identical from outside.",
+    facts: [
+      ["Approved tools", num(a?.approved_tools)],
+      ["Approved destinations", num(a?.approved_egress)],
+      ["Policy file", a?.policy_path || "none"],
+    ],
+    goTo: { page: "policy", label: "Open the policy" },
+  });
+
+  list.push({
+    name: "Session marks",
+    state: !a ? "off" : a.session_mark_error ? "bad" : a.session_marks_durable ? "ok" : "warn",
+    headline: !a
+      ? "Not visible to this account"
+      : a.session_mark_error
+        ? "Not being written"
+        : a.session_marks_durable
+          ? "Surviving a restart"
+          : "In memory only",
+    detail: a?.session_mark_error
+      ? String(a.session_mark_error)
+      : a?.session_marks_durable
+        ? "an action following untrusted content still needs a person after a restart"
+        : "a restart releases every marked session at once",
+    checkedBy:
+      "The last attempt to write a session mark to durable storage. This is the control that holds an action after an agent has read untrusted content; if it stops being written nothing fails, and the next restart releases every marked session.",
+    facts: [
+      ["Durable", a?.session_marks_durable ? "yes" : "no"],
+      ["Last write error", a?.session_mark_error || "none"],
+    ],
+  });
+
+  list.push({
+    name: "Waiting for a person",
+    state: !a ? "off" : (a.approvals_waiting ?? 0) > 0 ? "warn" : "ok",
+    headline: !a
+      ? "Not visible to this account"
+      : (a.approvals_waiting ?? 0) > 0
+        ? `${a.approvals_waiting} held`
+        : "Nothing held",
+    detail:
+      (a?.approvals_waiting ?? 0) > 0
+        ? "agents are stopped mid-task until somebody decides"
+        : "no agent is blocked on a decision",
+    checkedBy:
+      "Counted from the response actions this tenant holds. A queue nobody watches is an outage that reports itself as healthy: the gateway is fine and the agent is not moving.",
+    facts: [["Held for approval", num(a?.approvals_waiting)]],
+    goTo: { page: "approvals", label: "See what is waiting" },
+  });
+
+  list.push({
+    name: "Tool server",
+    state: !a ? "off" : a.mcp_upstream ? "ok" : "warn",
+    headline: !a ? "Not visible to this account" : a.mcp_upstream ? "Configured" : "Not configured",
+    detail: a?.mcp_upstream || "the MCP path answers nothing without an upstream",
+    checkedBy:
+      "The upstream address this gateway forwards approved tool calls to, as configured at startup. Configured is not the same as reachable, and this does not claim otherwise - a failed forward appears as an error on the call itself.",
+    facts: [["Upstream", a?.mcp_upstream || "none"]],
+  });
 
   list.push({
     name: "Alert delivery",
@@ -296,7 +384,7 @@ function buildComponents(status: any, validation: any): Component[] {
       : "webhook and connectors reporting cleanly",
     facts: [
       ["Last export error", status?.last_export_error || "none"],
-      ["Public URL", status?.public_url || "—"],
+      ["Public URL", status?.public_url || "-"],
     ],
     goTo: { page: "alerts", label: "See open alerts" },
   });
@@ -305,7 +393,7 @@ function buildComponents(status: any, validation: any): Component[] {
 }
 
 function num(value: any): string {
-  return typeof value === "number" ? value.toLocaleString() : "—";
+  return typeof value === "number" ? value.toLocaleString() : "-";
 }
 
 function formatUptime(seconds: number): string {

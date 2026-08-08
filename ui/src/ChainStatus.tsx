@@ -30,8 +30,8 @@ export default function ChainStatus() {
 
     const check = async () => {
       try {
-        // The witness is allowed to be unreadable — some accounts cannot see
-        // it — without that turning the whole badge into "unknown", which
+        // The witness is allowed to be unreadable - some accounts cannot see
+        // it - without that turning the whole badge into "unknown", which
         // would say the chain is unverifiable when it is merely unwitnessed
         // to this reader.
         const [chainResult, witnessResult] = await Promise.allSettled([

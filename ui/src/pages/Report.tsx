@@ -129,7 +129,7 @@ export default function Report() {
         </Panel>
       </div>
 
-      <Panel title={`Agent activity — ${report.tenant}`}>
+      <Panel title={`Agent activity - ${report.tenant}`}>
         <p className="panel-note">
           {day(report.period.from)} to {day(report.period.to)} · generated{" "}
           {new Date(report.generated_at).toLocaleString()} by {report.generated_by}
@@ -208,7 +208,7 @@ export default function Report() {
             <tbody>
               {approvals.map((approval, index) => (
                 <tr key={index}>
-                  <td className="mono">{approval.tool || "—"}</td>
+                  <td className="mono">{approval.tool || "-"}</td>
                   <td>{approval.approved_by}</td>
                   <td className="num panel-note">{new Date(approval.at).toLocaleString()}</td>
                 </tr>
@@ -236,8 +236,8 @@ export default function Report() {
                 <tr key={index}>
                   <td className="num panel-note">{new Date(change.at).toLocaleString()}</td>
                   <td>{change.by}</td>
-                  <td className="mono">{change.added || "—"}</td>
-                  <td className="mono">{change.removed || "—"}</td>
+                  <td className="mono">{change.added || "-"}</td>
+                  <td className="mono">{change.removed || "-"}</td>
                 </tr>
               ))}
             </tbody>
@@ -255,7 +255,7 @@ export default function Report() {
           </div>
           <div>
             <dt>Verified</dt>
-            <dd>{integrity.valid ? "yes" : "no — see below"}</dd>
+            <dd>{integrity.valid ? "yes" : "no - see below"}</dd>
           </div>
           {integrity.witness_configured ? (
             <div>
@@ -269,7 +269,7 @@ export default function Report() {
           ) : null}
           <div>
             <dt>Chain head</dt>
-            <dd className="mono">{integrity.head || "—"}</dd>
+            <dd className="mono">{integrity.head || "-"}</dd>
           </div>
         </dl>
         <p style={{ maxWidth: "78ch", marginTop: 8 }}>{integrity.statement}</p>

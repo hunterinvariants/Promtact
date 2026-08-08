@@ -142,7 +142,7 @@ export default function Connect() {
       </Panel>
 
       {created ? (
-        <Panel title={`${created.agent_id} — copy this now`}>
+        <Panel title={`${created.agent_id} - copy this now`}>
           {/* Shown once, and said plainly. A secret displayed without that
               warning is one somebody closes the tab on. */}
           <div className="callout">
@@ -154,7 +154,7 @@ export default function Connect() {
           <h4 style={{ marginTop: 14 }}>Configuration</h4>
           <p className="panel-note" style={{ maxWidth: "76ch" }}>
             For an MCP client. Replace <span className="mono">YOUR_API_KEY</span>{" "}
-            with the key of the account this agent authenticates as — the agent
+            with the key of the account this agent authenticates as - the agent
             identity proves which agent it is, the API key proves it may talk to
             this gateway at all.
           </p>
@@ -189,7 +189,7 @@ export default function Connect() {
         )}
         <p className="panel-note" style={{ marginTop: 10, maxWidth: "76ch" }}>
           Removing an agent does not block it. Its calls are held for a person
-          from the next one onward, which is a queue rather than an outage —
+          from the next one onward, which is a queue rather than an outage -
           worth knowing before you remove one on a Friday.
         </p>
       </Panel>

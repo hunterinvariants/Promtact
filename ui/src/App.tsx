@@ -85,7 +85,13 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; d
 ];
 
 function useTheme(): [string, () => void] {
-  const [theme, setTheme] = useState(() => localStorage.getItem("promtact-theme") || "system");
+  const [theme, setTheme] = useState(() => {
+    const stored = localStorage.getItem("promtact-theme");
+    // "system" was the old default, so a stored one means nobody chose it. A
+    // deliberate light or dark is kept; only the value that was never picked
+    // moves to the new default.
+    return !stored || stored === "system" ? "dark" : stored;
+  });
 
   useEffect(() => {
     const root = document.documentElement;
@@ -94,8 +100,11 @@ function useTheme(): [string, () => void] {
     localStorage.setItem("promtact-theme", theme);
   }, [theme]);
 
+  // Dark by default. A console that is read in a room with the lights down,
+  // beside a terminal, should not open as a white page - and every operator who
+  // wanted it that way had to find the toggle first.
   const cycle = useCallback(() => {
-    setTheme((current) => (current === "system" ? "light" : current === "light" ? "dark" : "system"));
+    setTheme((current) => (current === "dark" ? "light" : current === "light" ? "system" : "dark"));
   }, []);
 
   return [theme, cycle];
