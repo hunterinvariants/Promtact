@@ -444,6 +444,11 @@ func RequiredRoles(method string, path string) []string {
 	if path == "/api/events" || path == "/api/demo" {
 		return []string{RoleIngestor, RoleAnalyst, RoleOperator}
 	}
+	if strings.HasPrefix(path, "/api/policy/agents") {
+		// Registering an agent decides what may act unattended, which is the
+		// same weight of decision as approving a tool.
+		return []string{RoleOperator, RoleAdmin}
+	}
 	if path == "/api/policy" {
 		// Reading the policy is part of understanding what the gateway will do,
 		// so an analyst may. Changing it decides what an agent is allowed to

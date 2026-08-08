@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, isPlatformAdmin, Session } from "./api";
 import Approvals from "./pages/Approvals";
+import Connect from "./pages/Connect";
 import Demonstration from "./pages/Demonstration";
 import Gateway from "./pages/Gateway";
 import Health from "./pages/Health";
@@ -14,6 +15,7 @@ type PageKey =
   | "health"
   | "approvals"
   | "policy"
+  | "connect"
   | "report"
   | "tenants"
   | "demonstration"
@@ -41,6 +43,13 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; d
     demoOnly: true,
     title: "Demonstration",
     subtitle: "The same agent, with and without the gateway",
+  },
+  {
+    key: "connect",
+    label: "Connect an agent",
+    icon: "⇄",
+    title: "Connect an agent",
+    subtitle: "Point an agent at this gateway and register its identity",
   },
   {
     key: "policy",
@@ -238,6 +247,8 @@ export default function App() {
         return <Approvals />;
       case "policy":
         return <Policy />;
+      case "connect":
+        return <Connect />;
       case "report":
         return <Report />;
       case "demonstration":

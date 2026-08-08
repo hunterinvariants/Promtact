@@ -61,6 +61,10 @@ export const api = {
   report: (from: string, to: string) =>
     request<any>(`/api/report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   policy: () => request<any>("/api/policy"),
+  registerAgent: (agentID: string) =>
+    request<any>("/api/policy/agents", { method: "POST", body: JSON.stringify({ agent_id: agentID }) }),
+  removeAgent: (agentID: string) =>
+    request<any>(`/api/policy/agents/${encodeURIComponent(agentID)}`, { method: "DELETE" }),
   updatePolicy: (body: { approved_tools: string[]; approved_egress_hosts: string[] }) =>
     request<any>("/api/policy", { method: "PUT", body: JSON.stringify(body) }),
   demoDocuments: () => request<any[]>("/api/demo/documents"),

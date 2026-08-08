@@ -32,7 +32,20 @@ COPY --from=build /out/promtactl /usr/local/bin/promtactl
 COPY --chown=promtact:promtact web ./web
 COPY --chown=promtact:promtact configs ./configs
 
+# Somewhere writable for the local snapshot and, on a demonstration image, for
+# the example documents. A demo directory owned by root once took a live
+# deployment down for twenty minutes; the image should not be able to repeat it.
+RUN mkdir -p /var/lib/promtact && chown 10001:10001 /var/lib/promtact
+VOLUME /var/lib/promtact
+
 USER 10001:10001
 EXPOSE 8080
+
+# Readiness rather than liveness. A process that answers is not the same as a
+# store that can be written to, and a gateway unable to record its decisions
+# should stop receiving traffic rather than keep taking it.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/readyz >/dev/null || exit 1
+
 ENTRYPOINT ["/usr/local/bin/promtact"]
 CMD ["--addr", "0.0.0.0:8080", "--web", "/app/web"]
