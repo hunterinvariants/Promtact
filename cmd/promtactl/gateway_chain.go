@@ -205,6 +205,10 @@ func servePage(page string) (string, func(), error) {
 }
 
 func postJSON(client *http.Client, url string, token string, payload any) (map[string]any, error) {
+	return postJSONWithHeaders(client, url, token, nil, payload)
+}
+
+func postJSONWithHeaders(client *http.Client, url string, token string, headers map[string]string, payload any) (map[string]any, error) {
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -214,7 +218,12 @@ func postJSON(client *http.Client, url string, token string, payload any) (map[s
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
+	if strings.TrimSpace(token) != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

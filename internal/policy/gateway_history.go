@@ -18,6 +18,11 @@ var (
 	gatewayHistoryEvictBatch = 5000
 )
 
+// maxHistoryScoreContribution caps how far a session's past can move the score
+// on its own. The inline threshold is 70; this leaves history able to tip a
+// borderline call and unable to decide one.
+const maxHistoryScoreContribution = 35
+
 type gatewayHistoryState struct {
 	Calls         int
 	AllowCount    int
@@ -91,6 +96,28 @@ func (e *Engine) gatewayHistorySnapshot(request domain.ToolCallRequest) gatewayH
 	state := e.history[key]
 	if state == nil {
 		return gatewayHistorySnapshot{Key: key}
+	}
+
+	// A session that has been idle longer than the window is over, and its
+	// counters describe work that finished.
+	//
+	// Without this the history only ever pushes the score up: calls, approvals,
+	// denials and the running maximum all accumulate and none of them decay. An
+	// agent identity that lives for months therefore climbs past the inline
+	// threshold and never comes back down, and every call it makes afterwards
+	// is held — including an argument-free directory listing. That is what
+	// happened in testing here, and the symptom is a gateway that grows
+	// steadily stricter for no stated reason.
+	//
+	// The marks are kept: what a session read is a security fact with its own
+	// expiry, and it is not a tally of how busy the session was.
+	if !state.LastSeen.IsZero() && time.Since(state.LastSeen) > e.correlationWindow() {
+		state.Calls = 0
+		state.AllowCount = 0
+		state.ApprovalCount = 0
+		state.DenyCount = 0
+		state.RiskScoreMax = 0
+		state.RecentFactors = nil
 	}
 	return state.snapshot(key)
 }

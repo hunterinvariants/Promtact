@@ -352,22 +352,30 @@ func (e *Engine) scoreGatewayRequest(request domain.ToolCallRequest, tool string
 			factors = append(factors, "injection:keyword")
 		}
 	}
+	// History informs the score; it must not decide it on its own.
+	//
+	// These four contributions could reach 86 against a threshold of 70, so a
+	// busy session crossed the line on its past alone, whatever the call in
+	// hand was doing. Capping the total keeps history as context — it can push
+	// a borderline call over, and it cannot manufacture a verdict by itself.
+	historyScore := 0
 	if history.Calls > 0 {
-		score += minInt(history.Calls*2, 12)
+		historyScore += minInt(history.Calls*2, 12)
 		factors = append(factors, fmt.Sprintf("history:calls=%d", history.Calls))
 	}
 	if history.ApprovalCount > 0 {
-		score += minInt(history.ApprovalCount*8, 24)
+		historyScore += minInt(history.ApprovalCount*8, 24)
 		factors = append(factors, fmt.Sprintf("history:approvals=%d", history.ApprovalCount))
 	}
 	if history.DenyCount > 0 {
-		score += minInt(history.DenyCount*10, 30)
+		historyScore += minInt(history.DenyCount*10, 30)
 		factors = append(factors, fmt.Sprintf("history:denies=%d", history.DenyCount))
 	}
 	if history.RiskScoreMax > 0 {
-		score += minInt(history.RiskScoreMax/4, 20)
+		historyScore += minInt(history.RiskScoreMax/4, 20)
 		factors = append(factors, fmt.Sprintf("history:max_risk=%d", history.RiskScoreMax))
 	}
+	score += minInt(historyScore, maxHistoryScoreContribution)
 	if strings.TrimSpace(request.Destination) != "" {
 		score += 5
 		factors = append(factors, "context:destination")

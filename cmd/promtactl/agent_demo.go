@@ -55,23 +55,36 @@ func agentDemoCommand(args []string) error {
 	}
 	fmt.Printf("%s\n\n", rule)
 
-	agent := &credulousAgent{endpoint: endpoint, token: bearer, client: &http.Client{Timeout: 30 * time.Second}}
+	// A fresh session per run, which is what a real agent has. Without one every
+	// run of this demonstration shares a single history bucket with every other
+	// run, the risk score climbs across them, and eventually an argument-free
+	// directory listing is held for approval. That happened, and it looked like
+	// the gateway had broken.
+	agent := &credulousAgent{
+		endpoint: endpoint,
+		token:    bearer,
+		session:  fmt.Sprintf("agent-demo-%d", time.Now().UnixNano()),
+		client:   &http.Client{Timeout: 30 * time.Second},
+	}
 	return agent.run()
 }
 
 type credulousAgent struct {
 	endpoint string
 	token    string
+	session  string
 	client   *http.Client
 }
 
 func (a *credulousAgent) call(tool string, arguments map[string]any) (string, string) {
-	response, err := postJSON(a.client, a.endpoint, a.token, map[string]any{
-		"jsonrpc": "2.0",
-		"id":      time.Now().UnixNano(),
-		"method":  "tools/call",
-		"params":  map[string]any{"name": tool, "arguments": arguments},
-	})
+	response, err := postJSONWithHeaders(a.client, a.endpoint, a.token,
+		map[string]string{"Mcp-Session-Id": a.session},
+		map[string]any{
+			"jsonrpc": "2.0",
+			"id":      time.Now().UnixNano(),
+			"method":  "tools/call",
+			"params":  map[string]any{"name": tool, "arguments": arguments},
+		})
 	if err != nil {
 		return "", "transport: " + err.Error()
 	}
