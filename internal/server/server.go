@@ -476,6 +476,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/admin/tenants", a.handleAdminTenants)
 	mux.HandleFunc("/api/admin/tenants/", a.handleAdminTenantResource)
 	mux.HandleFunc("/api/responses/approve", a.handleResponseApproval)
+	mux.HandleFunc("/api/responses/decline", a.handleResponseDecline)
 	mux.HandleFunc("/api/responses", a.handleResponses)
 	mux.HandleFunc("/api/policies", a.handlePolicies)
 	mux.HandleFunc("/api/policy", a.handlePolicyDocument)
@@ -1850,7 +1851,11 @@ func (a *App) handleResponseApproval(w http.ResponseWriter, r *http.Request) {
 	}
 	action, ok, err := a.approveActionForTenant(req.ActionID, req.ApprovedBy, time.Now().UTC(), tenantForPrincipal(principalFromRequest(r)))
 	if err != nil {
-		if strings.Contains(err.Error(), "blocked gateway actions cannot be approved") {
+		// Both of these are conflicts between decisions, not server faults. A
+		// 500 tells the caller to retry something that will never succeed, and
+		// puts a red line in the log for a case that worked correctly.
+		if strings.Contains(err.Error(), "blocked gateway actions cannot be approved") ||
+			strings.Contains(err.Error(), "was declined and cannot be approved") {
 			writeError(w, http.StatusConflict, err)
 			return
 		}

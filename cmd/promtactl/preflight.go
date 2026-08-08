@@ -29,6 +29,11 @@ type preflightCheck struct {
 func preflightCommand(args []string) error {
 	fs := flag.NewFlagSet("preflight", flag.ContinueOnError)
 	common := tenantCommonFlags(fs)
+	// Running the demonstration is the whole value of this command, so it is on
+	// by default. It has one side effect worth knowing about: the guarded run
+	// ends with a held call, which lands in the approval queue. Decline it
+	// afterwards, or skip the run.
+	skipDemo := fs.Bool("skip-demo", false, "do not run the demonstration (it leaves one held call in the queue)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -184,13 +189,49 @@ func preflightCommand(args []string) error {
 		}
 	}
 
+	// The check that would have replaced most of the others.
+	//
+	// Everything above asks whether a component is configured. This asks
+	// whether the demonstration actually completes - and it is the question
+	// that went unasked while the demonstration was broken in production for
+	// an unknown length of time, on a deployment where every other indicator
+	// was green. "Available" and "works" are different claims.
+	demoRan := false
+	if state.DemoTools && !*skipDemo {
+		add(runDemonstrationCheck(base, token))
+		demoRan = true
+	}
+
+	// The approval count below came from the status read at the start, before
+	// the demonstration ran. Reporting it unchanged would say "queue empty"
+	// immediately after putting a call in the queue - a number that is correct
+	// about a moment that has passed, which is the least useful kind of wrong.
+	if demoRan {
+		if fresh, freshStatus, freshErr := tenantCall(http.MethodGet, base+"/api/gateway/queue", token, nil); freshErr == nil && freshStatus < 300 {
+			var queue struct {
+				PendingActions []struct {
+					ID string `json:"id"`
+				} `json:"pending_actions"`
+			}
+			if json.Unmarshal(fresh, &queue) == nil {
+				a.ApprovalsWaiting = len(queue.PendingActions)
+			}
+		}
+	}
+
 	// Not a fault, but the thing most likely to confuse an audience: a queue
 	// left over from an earlier run makes the guarded run look like it leaked.
+	queueDetail := "empty"
+	if a.ApprovalsWaiting > 0 {
+		queueDetail = fmt.Sprintf("%d call(s) waiting", a.ApprovalsWaiting)
+		if demoRan {
+			queueDetail += ", including the one this check just created"
+		}
+	}
 	add(preflightCheck{
-		name: "Approval queue", ok: a.ApprovalsWaiting == 0,
-		detail: pick(a.ApprovalsWaiting == 0, "empty",
-			fmt.Sprintf("%d call(s) already waiting from an earlier run", a.ApprovalsWaiting)),
-		fix: "clear them, or at least know they are there before the Approvals page is opened",
+		name: "Approval queue", ok: a.ApprovalsWaiting == 0, detail: queueDetail,
+		fix: "promtactl gateway decline --id <action> --reason ..., or leave them - but know\n" +
+			"    they are there before the Approvals page is opened in front of anyone",
 	})
 
 	failed := 0
@@ -217,6 +258,70 @@ func preflightCommand(args []string) error {
 		}
 	}
 	return fmt.Errorf("not ready")
+}
+
+// runDemonstrationCheck executes the guarded demonstration and asserts what it
+// is supposed to prove, rather than that it returned something.
+//
+// Three things have to hold, and each of them failed silently at some point:
+// the run has to complete at all, its first call has to be allowed, and the
+// outward action at the end has to be stopped. A run that completes with
+// everything allowed proves nothing, and a run where the very first call is
+// held looks identical to a broken product.
+func runDemonstrationCheck(base string, token string) preflightCheck {
+	body, status, err := tenantCall(http.MethodPost, base+"/api/demo/agent-run", token,
+		map[string]string{"via": "gateway"})
+	if err != nil {
+		return preflightCheck{name: "Demonstration runs", detail: "could not be started: " + err.Error(),
+			fix: "check the service log; the demonstration is the centrepiece of the pitch"}
+	}
+	if status >= 300 {
+		detail := strings.TrimSpace(string(body))
+		if len(detail) > 160 {
+			detail = detail[:160] + "…"
+		}
+		return preflightCheck{name: "Demonstration runs", detail: "FAILED - " + detail,
+			fix: "this is what an audience would see; do not present until it completes"}
+	}
+
+	var result struct {
+		Steps []struct {
+			Tool    string `json:"tool"`
+			Outcome string `json:"outcome"`
+		} `json:"steps"`
+		Sent   bool `json:"sent"`
+		Outbox int  `json:"outbox"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return preflightCheck{name: "Demonstration runs", detail: "returned something unreadable",
+			fix: "check the service log"}
+	}
+	if len(result.Steps) == 0 {
+		return preflightCheck{name: "Demonstration runs", detail: "completed without executing any step",
+			fix: "the run reported success but did nothing; check the tool server"}
+	}
+	if result.Steps[0].Outcome != "allowed" {
+		return preflightCheck{name: "Demonstration runs",
+			detail: "first call was " + result.Steps[0].Outcome + ", not allowed",
+			fix:    "an audience sees the product blocking its own demonstration; check agent identity and approved tools"}
+	}
+
+	stopped := 0
+	for _, step := range result.Steps {
+		if step.Outcome == "held" || step.Outcome == "withheld" {
+			stopped++
+		}
+	}
+	if stopped == 0 || result.Sent || result.Outbox > 0 {
+		return preflightCheck{name: "Demonstration runs",
+			detail: fmt.Sprintf("completed but nothing was stopped (held/withheld=%d, sent=%v, outbox=%d)",
+				stopped, result.Sent, result.Outbox),
+			fix: "the guarded run is supposed to stop the outward action; with nothing stopped it demonstrates the opposite"}
+	}
+
+	return preflightCheck{name: "Demonstration runs", ok: true,
+		detail: fmt.Sprintf("%d steps, %d stopped, nothing left the host", len(result.Steps), stopped),
+		fix:    ""}
 }
 
 func pick(cond bool, yes, no string) string {

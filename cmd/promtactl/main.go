@@ -850,6 +850,8 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "usage:")
 	fmt.Fprintln(os.Stderr, "  promtactl gateway call --tool NAME [--command ...] [--arguments ...] [--destination ...]")
 	fmt.Fprintln(os.Stderr, "  promtactl gateway demo         four tool calls through the gateway, with each verdict explained")
+	fmt.Fprintln(os.Stderr, "  promtactl gateway queue          what is held for a person right now")
+	fmt.Fprintln(os.Stderr, "  promtactl gateway decline --id ID --reason \"...\"   refuse a held call")
 	fmt.Fprintln(os.Stderr, "  promtactl gateway chain-demo   the two-step injection chain, end to end (run on the gateway host)")
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "  promtactl mcp-tools --dir DIR --seed        tool server with real files, for demonstrations")

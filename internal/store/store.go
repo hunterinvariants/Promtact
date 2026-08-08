@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -235,9 +236,57 @@ func (s *Store) ApproveAction(id string, approvedBy string, approvedAt time.Time
 		if (s.actions[i].Type == "gateway_tool_call" || s.actions[i].Type == "mcp_proxy") && s.actions[i].ExecutionStatus == "blocked" {
 			return domain.ResponseAction{}, true, errors.New("blocked gateway actions cannot be approved")
 		}
+		if s.actions[i].ApprovalStatus == "declined" {
+			// A decline is an answer, not a pause. Letting it be overturned by
+			// a later approval would make the record unable to say which one
+			// the person actually gave.
+			return domain.ResponseAction{}, true, errors.New("this action was declined and cannot be approved")
+		}
 		s.actions[i].ApprovalStatus = "approved"
 		s.actions[i].ApprovedBy = approvedBy
 		s.actions[i].ApprovedAt = &approvedAt
+		if err := s.persistActionsLocked([]domain.ResponseAction{s.actions[i]}); err != nil {
+			s.lastErr = err.Error()
+			return domain.ResponseAction{}, true, err
+		}
+		if err := s.persistLocked(); err != nil {
+			return domain.ResponseAction{}, true, err
+		}
+		return s.actions[i], true, nil
+	}
+	return domain.ResponseAction{}, false, nil
+}
+
+// DeclineAction refuses a held call permanently.
+//
+// Without this the only way to clear the approval queue was to approve, and
+// approving executes. A control that holds an action for a person, and then
+// offers that person no way to say no, is not really asking them a question -
+// it is delaying a yes. That is also the first thing a buyer notices about an
+// approval queue.
+//
+// A declined action is terminal: it cannot later be approved. Otherwise a "no"
+// would be a pause rather than an answer, and the record would not show which
+// one it was.
+func (s *Store) DeclineAction(id string, declinedBy string, reason string, declinedAt time.Time) (domain.ResponseAction, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.actions {
+		if s.actions[i].ID != id {
+			continue
+		}
+		if s.actions[i].ApprovalStatus == "approved" {
+			return domain.ResponseAction{}, true, errors.New("this action was already approved")
+		}
+		if s.actions[i].ApprovalStatus == "declined" {
+			return s.actions[i], true, nil
+		}
+		s.actions[i].ApprovalStatus = "declined"
+		s.actions[i].ApprovedBy = declinedBy
+		s.actions[i].ApprovedAt = &declinedAt
+		s.actions[i].ExecutionStatus = "declined"
+		s.actions[i].ExecutionError = strings.TrimSpace(reason)
 		if err := s.persistActionsLocked([]domain.ResponseAction{s.actions[i]}); err != nil {
 			s.lastErr = err.Error()
 			return domain.ResponseAction{}, true, err
