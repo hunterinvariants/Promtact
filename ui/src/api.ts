@@ -59,6 +59,8 @@ export const api = {
   assets: () => request<any[]>("/api/assets"),
   events: () => request<any[]>("/api/events"),
   actions: () => request<any[]>("/api/responses"),
+  auditChain: () => request<any>("/api/audit/chain"),
+  auditWitness: () => request<any>("/api/audit/witness"),
   runDemoAgent: (via: "direct" | "gateway") =>
     request<any>("/api/demo/agent-run", { method: "POST", body: JSON.stringify({ via }) }),
   approveAction: (actionID: string, approvedBy: string) =>

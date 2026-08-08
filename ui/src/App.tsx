@@ -5,6 +5,7 @@ import Approvals from "./pages/Approvals";
 import Assets from "./pages/Assets";
 import Demonstration from "./pages/Demonstration";
 import Detections from "./pages/Detections";
+import Gateway from "./pages/Gateway";
 import Events from "./pages/Events";
 import Health from "./pages/Health";
 import Overview from "./pages/Overview";
@@ -12,6 +13,7 @@ import Settings from "./pages/Settings";
 import Tenants from "./pages/Tenants";
 
 type PageKey =
+  | "gateway"
   | "overview"
   | "health"
   | "approvals"
@@ -24,7 +26,28 @@ type PageKey =
   | "settings";
 
 const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; demoOnly?: boolean; title: string; subtitle: string }[] = [
-  { key: "overview", label: "Overview", icon: "◎", title: "Overview", subtitle: "Current posture across your estate" },
+  {
+    key: "gateway",
+    label: "Gateway",
+    icon: "◈",
+    title: "Gateway",
+    subtitle: "What agents asked to do, what was decided, and whether the record holds",
+  },
+  {
+    key: "approvals",
+    label: "Approvals",
+    icon: "⧗",
+    title: "Approvals",
+    subtitle: "Tool calls the gateway is holding for a person",
+  },
+  {
+    key: "demonstration",
+    label: "Demonstration",
+    icon: "▶",
+    demoOnly: true,
+    title: "Demonstration",
+    subtitle: "The same agent, with and without the gateway",
+  },
   {
     key: "health",
     label: "System health",
@@ -32,24 +55,11 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; d
     title: "System health",
     subtitle: "Whether every part of the deployment is doing its job",
   },
-  {
-    // Second in the list, ahead of alerts, because this is the only page where
-    // something is waiting on a person. An alert can be read tomorrow; a held
-    // tool call has an agent stopped mid-task behind it.
-    key: "approvals",
-    label: "Approvals",
-    icon: "⧗",
-    title: "Approvals",
-    subtitle: "Tool calls the gateway is holding for a person",
-  },
+  // Below here is the older, host-shaped view. It is kept because the data is
+  // real and occasionally useful, and demoted because a gateway is not an
+  // endpoint product and its console should not open on alerts about hosts.
   { key: "alerts", label: "Alerts", icon: "⚑", title: "Alerts", subtitle: "Correlated detections awaiting triage" },
-  {
-    key: "events",
-    label: "Events",
-    icon: "≡",
-    title: "Events",
-    subtitle: "Everything collected, searchable",
-  },
+  { key: "events", label: "Events", icon: "≡", title: "Events", subtitle: "Everything collected, searchable" },
   { key: "assets", label: "Assets", icon: "▤", title: "Assets", subtitle: "Hosts and agent surfaces under watch" },
   {
     key: "detections",
@@ -65,16 +75,6 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; d
     adminOnly: true,
     title: "Customers",
     subtitle: "Provision and manage tenant accounts",
-  },
-  {
-    // Only on a deployment started with --demo-tools. A button in a production
-    // console that runs a scripted attack is not a feature.
-    key: "demonstration",
-    label: "Demonstration",
-    icon: "▶",
-    demoOnly: true,
-    title: "Demonstration",
-    subtitle: "The same agent, with and without the gateway",
   },
   { key: "settings", label: "Settings", icon: "⚙", title: "Settings", subtitle: "Access and deployment details" },
 ];
@@ -184,7 +184,7 @@ function Login({ onSignedIn, sso }: { onSignedIn: (session: Session) => void; ss
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
-  const [page, setPage] = useState<PageKey>("overview");
+  const [page, setPage] = useState<PageKey>("gateway");
   const [theme, cycleTheme] = useTheme();
   const [demoMode, setDemoMode] = useState(false);
 
@@ -218,7 +218,7 @@ export default function App() {
       /* fall through: clearing local state is what matters */
     }
     setSession({ authenticated: false });
-    setPage("overview");
+    setPage("gateway");
   };
 
   if (!ready) return null;
@@ -235,6 +235,8 @@ export default function App() {
 
   const renderPage = () => {
     switch (active.key) {
+      case "gateway":
+        return <Gateway onNavigate={setPage} />;
       case "health":
         return <Health onNavigate={setPage} />;
       case "approvals":
@@ -253,8 +255,10 @@ export default function App() {
         return <Tenants />;
       case "settings":
         return <Settings session={session} />;
-      default:
+      case "overview":
         return <Overview onNavigate={setPage} />;
+      default:
+        return <Gateway onNavigate={setPage} />;
     }
   };
 
