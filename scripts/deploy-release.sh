@@ -113,17 +113,31 @@ group_end
 
 group_start "wait for readiness"
 ready_ok=0
+attempts=0
+# The first attempt lands before the process has opened its port, every time.
+# Printing that attempt's error made every successful deploy in this project
+# look half-broken, and an operator who learns to ignore one line of red learns
+# to ignore the next one too. Errors are collected and shown only if the whole
+# wait fails, where they are the actual diagnosis.
+last_error=""
 for _ in $(seq 1 "$DEPLOY_WAIT_SECONDS"); do
-  if curl -fsS "$DEPLOY_HTTP_BASE$DEPLOY_READY_PATH" >/dev/null; then
+  attempts=$((attempts + 1))
+  if last_error="$(curl -fsS "$DEPLOY_HTTP_BASE$DEPLOY_READY_PATH" 2>&1 >/dev/null)"; then
     ready_ok=1
     break
   fi
   sleep "$DEPLOY_WAIT_INTERVAL"
 done
+if [ "$ready_ok" -eq 1 ]; then
+  log "ready after ${attempts}s"
+fi
 group_end
 
 if [ "$ready_ok" -ne 1 ]; then
-  log "Readiness check failed for $DEPLOY_SERVICE"
+  log "Readiness check failed for $DEPLOY_SERVICE after ${attempts}s"
+  if [ -n "$last_error" ]; then
+    log "  last error: $last_error"
+  fi
   rollback_release
   diagnostics
   exit 1
