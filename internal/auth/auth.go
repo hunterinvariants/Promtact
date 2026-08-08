@@ -444,6 +444,13 @@ func RequiredRoles(method string, path string) []string {
 	if path == "/api/events" || path == "/api/demo" {
 		return []string{RoleIngestor, RoleAnalyst, RoleOperator}
 	}
+	if strings.HasPrefix(path, "/api/demo/") {
+		// The demonstration endpoints exist only on a deployment started for
+		// one, and running them changes nothing a customer owns. Without this
+		// they fall through to the admin default, so showing the product to
+		// somebody would mean handing them an administrator account.
+		return []string{RoleAnalyst, RoleOperator, RoleAdmin}
+	}
 	if strings.HasPrefix(path, "/api/assets/") {
 		// Removing an asset destroys its events, alerts and actions with it.
 		// Decommissioning a machine is an operator's job, but it is not an
