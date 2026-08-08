@@ -125,48 +125,21 @@ func main() {
 		if directory == "" {
 			directory = "promtact-demo"
 		}
-		tools, err := demotools.New(directory)
-		if err != nil {
-			log.Fatalf("preparing the demonstration directory: %v", err)
+		// Every failure here is reported and then survived. A demonstration is
+		// an addition to a gateway, never a precondition for it: a read-only
+		// demo directory once took a live deployment down and left it
+		// restarting a hundred and thirty times, because setting up some
+		// example documents was allowed to be fatal. Whatever else is wrong,
+		// the gateway keeps gating.
+		if err := startDemoTools(directory, mcpUpstreamURL, proxyAllowLocalTargets, apiToken, &runtimeConfig, &demoServer, &stopDemoTools); err != nil {
+			log.Printf("demonstration tools unavailable, continuing without them: %v", err)
 		}
-		if err := tools.Seed(); err != nil {
-			log.Fatalf("writing the demonstration documents: %v", err)
-		}
-		if err := tools.ClearOutbox(); err != nil {
-			log.Fatalf("clearing the outbox: %v", err)
-		}
-		toolsURL, stop, err := tools.Listen(0)
-		if err != nil {
-			log.Fatalf("starting the demonstration tool server: %v", err)
-		}
-		stopDemoTools = stop
-
-		*mcpUpstreamURL = toolsURL
-		// The tool server is on loopback by design; without this the gateway
-		// refuses to reach it, which is the right default and wrong here.
-		*proxyAllowLocalTargets = true
-		for _, tool := range demotools.Tools {
-			if !containsFold(runtimeConfig.ApprovedTools, tool) {
-				runtimeConfig.ApprovedTools = append(runtimeConfig.ApprovedTools, tool)
-			}
-		}
-		if strings.TrimSpace(*apiToken) == "" {
-			*apiToken = "demo"
-		}
-
-		demoServer = tools
-		defer stopDemoTools()
-
-		// The unguarded run needs to reach the tool server directly, and the
-		// port is chosen at start, so it has to be printed. A demonstration
-		// that requires looking up a port is one more thing to get wrong.
-		log.Printf("demonstration documents: %s", tools.Root())
-		log.Printf("demonstration outbox:    %s", tools.Outbox())
-		log.Printf("run it:")
-		log.Printf("  promtactl agent-demo --via direct  --tools-url %s", toolsURL)
-		log.Printf("  promtactl agent-demo --via gateway --url http://%s --token %s",
-			strings.TrimPrefix(*addr, ":"), *apiToken)
 	}
+
+	if stopDemoTools != nil {
+		defer stopDemoTools()
+	}
+
 	if value := strings.TrimSpace(*threatPackPath); value != "" {
 		runtimeConfig.ThreatPackPath = value
 	}
@@ -486,4 +459,57 @@ func containsFold(values []string, candidate string) bool {
 		}
 	}
 	return false
+}
+
+// startDemoTools prepares the self-contained demonstration.
+//
+// It returns an error instead of exiting, and the caller logs and carries on.
+// A gateway that refuses to start because some example documents could not be
+// written is a gateway that stops protecting an agent over a directory
+// permission — which is exactly what happened: a read-only demo path took a
+// live deployment down and left systemd restarting it a hundred and thirty
+// times.
+func startDemoTools(
+	directory string,
+	mcpUpstreamURL *string,
+	proxyAllowLocalTargets *bool,
+	apiToken *string,
+	runtimeConfig *config.Config,
+	demoServer **demotools.Server,
+	stopDemoTools *func(),
+) error {
+	tools, err := demotools.New(directory)
+	if err != nil {
+		return fmt.Errorf("preparing %s: %w", directory, err)
+	}
+	if err := tools.Seed(); err != nil {
+		return fmt.Errorf("writing the documents: %w", err)
+	}
+	if err := tools.ClearOutbox(); err != nil {
+		return fmt.Errorf("clearing the outbox: %w", err)
+	}
+	toolsURL, stop, err := tools.Listen(0)
+	if err != nil {
+		return fmt.Errorf("starting the tool server: %w", err)
+	}
+
+	*stopDemoTools = stop
+	*demoServer = tools
+	*mcpUpstreamURL = toolsURL
+	// The tool server is on loopback by design; without this the gateway
+	// refuses to reach it, which is the right default and wrong here.
+	*proxyAllowLocalTargets = true
+	for _, tool := range demotools.Tools {
+		if !containsFold(runtimeConfig.ApprovedTools, tool) {
+			runtimeConfig.ApprovedTools = append(runtimeConfig.ApprovedTools, tool)
+		}
+	}
+	if strings.TrimSpace(*apiToken) == "" {
+		*apiToken = "demo"
+	}
+
+	log.Printf("demonstration documents: %s", tools.Root())
+	log.Printf("demonstration outbox:    %s", tools.Outbox())
+	log.Printf("demonstration tools:     %s", toolsURL)
+	return nil
 }
