@@ -3,6 +3,12 @@
 /promtact.exe
 /promtactl
 /promtactl.exe
+
+# Editor and build backups. Two 19 MB Windows binaries reached the repository
+# because the ignore list named the executables but not the copies tools leave
+# beside them.
+*~
+*.exe~
 /dist/
 /bin/
 
