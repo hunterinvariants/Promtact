@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/hunterinvariants/promtact/internal/config"
+	"github.com/hunterinvariants/promtact/internal/demotools"
 	"github.com/hunterinvariants/promtact/internal/domain"
 	"github.com/hunterinvariants/promtact/internal/policy"
 	"github.com/hunterinvariants/promtact/internal/server"
@@ -95,6 +96,8 @@ func main() {
 	decisionJournalMax := flag.Int("decision-journal-max-entries", defaultIntEnv(os.Getenv("PROMTACT_DECISION_JOURNAL_MAX_ENTRIES"), 10000), "maximum records held in the decision journal before new ones are refused")
 	insecure := flag.Bool("insecure", parseBoolEnv(os.Getenv("PROMTACT_INSECURE")), "allow open mode on non-loopback listen addresses")
 	withDemo := flag.Bool("demo", false, "load safe demo telemetry at startup")
+	demoTools := flag.Bool("demo-tools", false, "run the demonstration tool server in-process and gate it, for a self-contained showcase")
+	demoDir := flag.String("demo-dir", "", "where the demonstration's documents live (default: promtact-demo beside the working directory)")
 	showVersion := flag.Bool("version", false, "print version and build revision, then exit")
 	flag.Parse()
 
@@ -106,6 +109,61 @@ func main() {
 	runtimeConfig, err := config.Load(*policyPath)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// The whole demonstration from one command.
+	//
+	// Assembled by hand it is a tool server, a policy file, an upstream URL, an
+	// API token and an agent identity across three terminals — and every
+	// failure during this product's first live run came out of that ceremony
+	// rather than out of the product. A showcase somebody has to build before
+	// they can show it is a showcase that breaks in front of an audience.
+	var stopDemoTools func()
+	if *demoTools {
+		directory := strings.TrimSpace(*demoDir)
+		if directory == "" {
+			directory = "promtact-demo"
+		}
+		tools, err := demotools.New(directory)
+		if err != nil {
+			log.Fatalf("preparing the demonstration directory: %v", err)
+		}
+		if err := tools.Seed(); err != nil {
+			log.Fatalf("writing the demonstration documents: %v", err)
+		}
+		if err := tools.ClearOutbox(); err != nil {
+			log.Fatalf("clearing the outbox: %v", err)
+		}
+		toolsURL, stop, err := tools.Listen(0)
+		if err != nil {
+			log.Fatalf("starting the demonstration tool server: %v", err)
+		}
+		stopDemoTools = stop
+
+		*mcpUpstreamURL = toolsURL
+		// The tool server is on loopback by design; without this the gateway
+		// refuses to reach it, which is the right default and wrong here.
+		*proxyAllowLocalTargets = true
+		for _, tool := range demotools.Tools {
+			if !containsFold(runtimeConfig.ApprovedTools, tool) {
+				runtimeConfig.ApprovedTools = append(runtimeConfig.ApprovedTools, tool)
+			}
+		}
+		if strings.TrimSpace(*apiToken) == "" {
+			*apiToken = "demo"
+		}
+
+		defer stopDemoTools()
+
+		// The unguarded run needs to reach the tool server directly, and the
+		// port is chosen at start, so it has to be printed. A demonstration
+		// that requires looking up a port is one more thing to get wrong.
+		log.Printf("demonstration documents: %s", tools.Root())
+		log.Printf("demonstration outbox:    %s", tools.Outbox())
+		log.Printf("run it:")
+		log.Printf("  promtactl agent-demo --via direct  --tools-url %s", toolsURL)
+		log.Printf("  promtactl agent-demo --via gateway --url http://%s --token %s",
+			strings.TrimPrefix(*addr, ":"), *apiToken)
 	}
 	if value := strings.TrimSpace(*threatPackPath); value != "" {
 		runtimeConfig.ThreatPackPath = value
@@ -413,4 +471,16 @@ func buildRevision() (string, bool) {
 		revision = revision[:12]
 	}
 	return revision, modified
+}
+
+// containsFold reports whether the list already holds the value, ignoring case,
+// so enabling the demonstration on a deployment that already approves one of
+// its tools does not duplicate the entry.
+func containsFold(values []string, candidate string) bool {
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), strings.TrimSpace(candidate)) {
+			return true
+		}
+	}
+	return false
 }
