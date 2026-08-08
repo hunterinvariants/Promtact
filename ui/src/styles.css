@@ -1211,3 +1211,106 @@ tr.is-clickable:hover td { cursor: pointer; }
     display: none;
   }
 }
+
+/* ---------- Decision detail ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 18, 22, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  z-index: 50;
+  overflow-y: auto;
+}
+
+.modal {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  width: min(880px, 100%);
+}
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.modal-body {
+  padding: 4px 20px 20px;
+}
+
+/* Numbered, because the order is the argument: what came back, what was then
+   asked for, what was decided, and what it is recorded on. */
+.detail-step {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-step:last-child {
+  border-bottom: none;
+}
+
+.detail-step h4 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.detail-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: none;
+}
+
+.detail-list {
+  margin: 4px 0 8px;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+/* The decoded instruction. Marked because it was invisible by construction:
+   an analyst is used to hunting through text for something wrong, and here the
+   wrong thing had no visible form at all. */
+.hidden-payload {
+  border-left: 3px solid #9b2c2c;
+  background: rgba(155, 44, 44, 0.06);
+  color: #7f2323;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 78ch;
+}
+
+:root[data-theme="dark"] .hidden-payload {
+  border-left-color: #c25050;
+  background: rgba(194, 80, 80, 0.12);
+  color: #eda3a3;
+}

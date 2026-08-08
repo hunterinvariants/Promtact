@@ -25,10 +25,10 @@ type PageKey =
 const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; demoOnly?: boolean; title: string; subtitle: string }[] = [
   {
     key: "gateway",
-    label: "Gateway",
+    label: "Audit Trail",
     icon: "◈",
-    title: "Gateway",
-    subtitle: "What agents asked to do, what was decided, and whether the record holds",
+    title: "Audit Trail",
+    subtitle: "Every decision this gateway made, on a record that cannot be quietly edited",
   },
   {
     key: "approvals",

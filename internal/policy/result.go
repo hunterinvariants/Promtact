@@ -161,6 +161,14 @@ func (e *Engine) InspectToolResult(request domain.ToolCallRequest, body string) 
 	if spans := smuggledRunes(body); len(spans) > 0 {
 		decision.Findings = append(decision.Findings, "hidden_unicode")
 		decision.Evidence["hidden_unicode"] = spans
+		// The characters counted, and then what they say. A count proves
+		// something was hidden; the decoded text is what makes an audience
+		// understand why it mattered, and an analyst reading this later has the
+		// same question. It is attacker-controlled text and is recorded as
+		// evidence, never rendered as anything but text.
+		if decoded := decodeSmuggledText(body); decoded != "" {
+			decision.Evidence["hidden_text"] = truncate(decoded, 400)
+		}
 		decision.Verdict = domain.GatewayDeny
 		decision.Reason = "tool result contains characters that are invisible to a reader but not to a model"
 		decision.Risk = domain.SeverityCritical
@@ -298,4 +306,20 @@ func sortStrings(values []string) {
 			values[j], values[j-1] = values[j-1], values[j]
 		}
 	}
+}
+
+// decodeSmuggledText turns Unicode tag characters back into the text they
+// stand for.
+//
+// The block mirrors ASCII, so an instruction written in it renders as nothing
+// and reads as ordinary text to a model. Decoding it is what turns "162
+// invisible characters" into a sentence somebody can weigh.
+func decodeSmuggledText(body string) string {
+	var decoded strings.Builder
+	for _, r := range body {
+		if r >= 0xE0000 && r <= 0xE007F {
+			decoded.WriteRune(r - 0xE0000)
+		}
+	}
+	return strings.TrimSpace(decoded.String())
 }

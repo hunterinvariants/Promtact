@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { Badge, Empty, Panel } from "../components";
+import DecisionDetail from "../DecisionDetail";
 
 // The front page, rebuilt around what this product actually does.
 //
@@ -58,7 +59,7 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [chain, setChain] = useState<Chain | null>(null);
   const [witness, setWitness] = useState<Witness | null>(null);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [opened, setOpened] = useState<Decision | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -204,10 +205,9 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
               {decisions.slice(0, 25).map((decision) => {
                 const meta = decision.metadata || {};
                 const outcome = describe(decision);
-                const open = expanded === decision.id;
                 return (
                   <Fragment key={decision.id}>
-                    <tr className="is-clickable" onClick={() => setExpanded(open ? null : decision.id)}>
+                    <tr className="is-clickable" onClick={() => setOpened(decision)}>
                       <td className="num panel-note" style={{ whiteSpace: "nowrap" }}>
                         {decision.created_at ? new Date(decision.created_at).toLocaleString() : "—"}
                       </td>
@@ -221,31 +221,6 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
                         {decision.id ? decision.id.slice(0, 22) : "—"}
                       </td>
                     </tr>
-                    {open ? (
-                      <tr>
-                        <td colSpan={6} className="event-detail">
-                          <dl>
-                            {[
-                              ["Tool", meta.tool],
-                              ["Command", meta.command],
-                              ["Asked by", meta.actor],
-                              ["Destination", meta.destination || meta.mcp_upstream_url || meta.proxy_upstream_url],
-                              ["Verdict", meta.verdict],
-                              ["Risk", meta.risk],
-                              ["Found in the answer", meta.result_findings],
-                              ["Session had read", meta.result_taint],
-                            ]
-                              .filter(([, value]) => value)
-                              .map(([label, value]) => (
-                                <div key={label as string}>
-                                  <dt>{label}</dt>
-                                  <dd className="mono">{value as string}</dd>
-                                </div>
-                              ))}
-                          </dl>
-                        </td>
-                      </tr>
-                    ) : null}
                   </Fragment>
                 );
               })}
@@ -253,6 +228,8 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
           </table>
         )}
       </Panel>
+
+      {opened ? <DecisionDetail decision={opened} onClose={() => setOpened(null)} /> : null}
     </>
   );
 }

@@ -127,6 +127,13 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 			if len(inspection.Taint) > 0 {
 				action.Metadata["result_taint"] = strings.Join(inspection.Taint, ",")
 			}
+			// The evidence travels with the decision, not only into the audit
+			// record. A console showing that something was withheld and unable
+			// to show what was found is asking to be taken on trust, which is
+			// the one thing this product is not allowed to ask for.
+			for key, value := range inspection.Evidence {
+				action.Metadata["evidence_"+key] = value
+			}
 			a.prepareAction(&action, tenant)
 			a.persistActions(tenant, []domain.ResponseAction{action})
 			a.recordAudit(r, principal, "mcp.proxy", "tool_call", decision.RequestID, executionStatus, map[string]string{
