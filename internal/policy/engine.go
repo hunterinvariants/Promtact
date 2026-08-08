@@ -17,10 +17,12 @@ import (
 )
 
 type Engine struct {
-	cfgMu               sync.RWMutex
-	approvedTools       map[string]struct{}
-	toolProvenance      map[string]ToolProvenanceEntry
-	agentIdentities     map[string]AgentIdentity
+	cfgMu           sync.RWMutex
+	approvedTools   map[string]struct{}
+	toolProvenance  map[string]ToolProvenanceEntry
+	agentIdentities map[string]AgentIdentity
+	// demoIdentity is registered at startup by --demo-tools and survives Reload.
+	demoIdentity        *AgentIdentity
 	approvedEgressHosts map[string]struct{}
 	pack                ThreatPack
 	deceptionMu         sync.RWMutex
@@ -247,14 +249,27 @@ const (
 // trusted — the call must present a registered agent id and a token that hashes
 // to that agent's KeyHash.
 func (e *Engine) checkAgentIdentity(request domain.ToolCallRequest) agentIdentityStatus {
+	claimed := strings.ToLower(strings.TrimSpace(request.AgentID))
+
 	e.cfgMu.RLock()
 	count := len(e.agentIdentities)
-	entry, ok := e.agentIdentities[strings.ToLower(strings.TrimSpace(request.AgentID))]
+	entry, ok := e.agentIdentities[claimed]
+	demo := e.demoIdentity
 	e.cfgMu.RUnlock()
-	if count == 0 {
+
+	// The demonstration's own identity, registered in memory at startup rather
+	// than in the policy file. It is consulted but deliberately not counted:
+	// were it counted, starting a deployment with --demo-tools would begin
+	// requiring registered identities from every other caller, which is a
+	// different policy than the operator wrote.
+	if demo != nil && claimed == strings.ToLower(strings.TrimSpace(demo.AgentID)) {
+		entry, ok = *demo, true
+	}
+
+	if count == 0 && !ok {
 		return agentNotRequired
 	}
-	if strings.TrimSpace(request.AgentID) == "" {
+	if claimed == "" {
 		return agentUnidentified
 	}
 	if !ok {
@@ -286,6 +301,35 @@ func (e *Engine) Reload(config Config) {
 	e.pack = rebuilt.pack
 	e.cfgMu.Unlock()
 }
+
+// SetDemoAgentIdentity registers the identity the built-in demonstration
+// presents, held in memory rather than in the policy file.
+//
+// Without it the demonstration was broken on any deployment that had registered
+// even one agent identity: the demo run presented none, the gateway correctly
+// held its very first call, and the run failed with "unidentified agent" - a
+// message that reads like the product is broken rather than like the control
+// working. Nothing reported this, because the check only ever asked whether the
+// demonstration was *available*.
+//
+// It survives Reload on purpose: a policy reload must not silently break the
+// demonstration, and a config file is not where an ephemeral process-lifetime
+// credential belongs.
+func (e *Engine) SetDemoAgentIdentity(agentID string, keyHash string) {
+	agentID = strings.TrimSpace(agentID)
+	keyHash = strings.TrimSpace(keyHash)
+	e.cfgMu.Lock()
+	defer e.cfgMu.Unlock()
+	if agentID == "" || keyHash == "" {
+		e.demoIdentity = nil
+		return
+	}
+	e.demoIdentity = &AgentIdentity{AgentID: agentID, KeyHash: keyHash}
+}
+
+// HashAgentToken exposes the hashing used for registered agent tokens, so a
+// caller registering an identity does not reimplement it and drift.
+func HashAgentToken(token string) string { return hashAgentToken(token) }
 
 // SetDeceptionTokens replaces the deception/canary registry (startup seed).
 func (e *Engine) SetDeceptionTokens(tokens []domain.DeceptionToken) {

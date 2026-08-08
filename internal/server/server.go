@@ -80,7 +80,10 @@ type App struct {
 	// demoTools is set only when the deployment was started for a
 	// demonstration. Its absence is what keeps the console's demonstration page
 	// and its endpoint out of a production install.
-	demoTools      *demotools.Server
+	demoTools *demotools.Server
+	// The identity the demonstration presents, generated per process.
+	demoAgentID    string
+	demoAgentToken string
 	oidc           *oidcProvider
 	saml           *samlProvider
 	instanceName   string
@@ -340,7 +343,34 @@ func NewWithOptions(options Options) (*App, error) {
 		licenseStatus:          licenseStatus,
 	}
 	app.attachTaintStore()
+	app.registerDemoAgentIdentity()
 	return app, nil
+}
+
+// registerDemoAgentIdentity gives the built-in demonstration an identity to
+// present, generated per process and never written to disk.
+//
+// The demonstration used to present none. On any deployment with even one
+// registered agent identity - which is the recommended configuration - the
+// gateway correctly held the demo's very first tool call, and the run died with
+// "unidentified agent requires operator approval". Nothing caught it, because
+// every check only ever asked whether the demonstration was *available*, and it
+// was; it just could not complete.
+//
+// The identity is not added to the configured registry, so a deployment that
+// requires no identities keeps requiring none.
+func (a *App) registerDemoAgentIdentity() {
+	if a.demoTools == nil || a.policy == nil {
+		return
+	}
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		log.Printf("demonstration identity could not be generated: %v", err)
+		return
+	}
+	a.demoAgentID = "promtact-demonstration"
+	a.demoAgentToken = hex.EncodeToString(buf)
+	a.policy.SetDemoAgentIdentity(a.demoAgentID, policy.HashAgentToken(a.demoAgentToken))
 }
 
 // attachTaintStore gives the policy engine somewhere durable to keep session

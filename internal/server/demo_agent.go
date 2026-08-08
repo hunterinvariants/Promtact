@@ -147,6 +147,14 @@ func (d *demoAgent) callThroughGateway(payload []byte) (string, string) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Mcp-Session-Id", d.session)
+	// The demonstration presents a registered identity, as a real agent must on
+	// any deployment that has configured any. Without this the gateway held the
+	// first call of every run and the demonstration failed with "unidentified
+	// agent" - correct enforcement, and an unusable demonstration.
+	if d.app.demoAgentID != "" {
+		req.Header.Set("X-Promtact-Agent-Id", d.app.demoAgentID)
+		req.Header.Set("X-Promtact-Agent-Token", d.app.demoAgentToken)
+	}
 	req.RemoteAddr = d.request.RemoteAddr
 
 	recorder := &bufferedResponse{header: http.Header{}}
