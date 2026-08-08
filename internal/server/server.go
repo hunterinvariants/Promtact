@@ -448,6 +448,8 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/policies", a.handlePolicies)
 	mux.HandleFunc("/api/demo", a.handleDemo)
 	mux.HandleFunc("/api/demo/agent-run", a.handleDemoAgentRun)
+	mux.HandleFunc("/api/demo/documents", a.handleDemoDocuments)
+	mux.HandleFunc("/api/demo/outbox", a.handleDemoOutbox)
 	mux.HandleFunc("/api/gateway/proxy", a.handleGatewayProxy)
 	mux.HandleFunc("/api/mcp/proxy", a.handleMCPProxy)
 	if a.saml != nil && a.saml.Enabled() {
