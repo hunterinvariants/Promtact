@@ -212,7 +212,15 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
                 const outcome = describe(decision);
                 return (
                   <Fragment key={decision.id}>
-                    <tr className="is-clickable" onClick={() => setOpened(decision)}>
+                    {/* The row is marked by what happened; the badge says what
+                        was done about it. Colouring a stopped attack green
+                        alone reads as "nothing to see", and colouring it red
+                        alone reads as "the product failed" — an attack did
+                        occur and it was contained, and those are two facts. */}
+                    <tr
+                      className={`is-clickable${meta.result_findings ? " row-incident" : ""}`}
+                      onClick={() => setOpened(decision)}
+                    >
                       <td className="num panel-note" style={{ whiteSpace: "nowrap" }}>
                         {decision.created_at ? new Date(decision.created_at).toLocaleString() : "—"}
                       </td>

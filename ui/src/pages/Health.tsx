@@ -17,6 +17,10 @@ type Component = {
   // hand. Several components have no page of their own, and inventing a link
   // that goes nowhere is worse than none — so the detail comes to the card.
   facts: [string, string][];
+  // How this component's status was established. "Three of three healthy"
+  // invites exactly one question — checked by what? — and a status page that
+  // cannot answer it is asking to be believed rather than read.
+  checkedBy: string;
   goTo?: { page: string; label: string };
 };
 
@@ -134,6 +138,12 @@ function HealthCard({ component, onNavigate }: {
 
       {open ? (
         <div className="health-facts" id={id}>
+          {/* First, because it is the question a status page provokes and
+              usually cannot answer. */}
+          <p className="health-checked">
+            <span className="health-checked-label">Established by</span>
+            {component.checkedBy}
+          </p>
           <dl>
             {component.facts.map(([label, value]) => (
               <div key={label}>
@@ -159,6 +169,7 @@ function buildComponents(status: any, validation: any): Component[] {
 
   list.push({
     name: "Enforcement gateway",
+    checkedBy: "The service answered on its own address and reported its limiter, journal depth and decision latency.",
     state: !status ? "bad" : a?.degraded_mode ? "warn" : "ok",
     headline: !status
       ? "Unreachable"
@@ -180,6 +191,7 @@ function buildComponents(status: any, validation: any): Component[] {
 
   list.push({
     name: "Storage",
+    checkedBy: "The last write attempt and the schema version the store reports having applied.",
     state: !status ? "bad" : status.last_storage_error ? "bad" : "ok",
     headline: status?.last_storage_error ? "Write failing" : status?.storage_mode || "unknown",
     detail: status?.last_storage_error
@@ -195,6 +207,7 @@ function buildComponents(status: any, validation: any): Component[] {
 
   list.push({
     name: "Audit chain",
+    checkedBy: "Every record re-hashed and compared with the hash stored on the record after it.",
     state: !a ? "off" : a.audit_chain_valid ? "ok" : "bad",
     headline: !a ? "Not visible to this account" : a.audit_chain_valid ? "Valid" : "Broken",
     detail: a ? `${a.audit_chain_index.toLocaleString()} records linked` : "platform operator only",
@@ -207,6 +220,7 @@ function buildComponents(status: any, validation: any): Component[] {
 
   list.push({
     name: "External witness",
+    checkedBy: "The head published to the witness, fetched back and compared with the head this server holds.",
     state: !a ? "off" : !a.witness_configured ? "off" : a.witness_diverged ? "bad" : "ok",
     headline: !a
       ? "Not visible to this account"
@@ -229,6 +243,7 @@ function buildComponents(status: any, validation: any): Component[] {
 
   list.push({
     name: "Operator access reporting",
+    checkedBy: "Database sessions observed on the host, reconciled against announced break-glass windows.",
     state: !a ? "off" : a.shipper_silent ? "warn" : a.unannounced_sessions > 0 ? "warn" : "ok",
     headline: !a
       ? "Not visible to this account"
@@ -254,6 +269,7 @@ function buildComponents(status: any, validation: any): Component[] {
     const clean = total > 0 && passed === total;
     list.push({
       name: "Detection validation",
+    checkedBy: "The last run of the benign emulation suite and how many of its techniques were caught.",
       state: total === 0 ? "off" : clean ? "ok" : "bad",
       headline: total === 0 ? "Never run" : `${passed} of ${total} techniques held`,
       detail:
@@ -272,6 +288,7 @@ function buildComponents(status: any, validation: any): Component[] {
 
   list.push({
     name: "Alert delivery",
+    checkedBy: "The last delivery attempt to each configured webhook and connector.",
     state: status?.last_export_error ? "warn" : "ok",
     headline: status?.last_export_error ? "Last export failed" : "No delivery failures",
     detail: status?.last_export_error

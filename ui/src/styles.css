@@ -1366,3 +1366,119 @@ tr.is-clickable:hover td { cursor: pointer; }
     gap: 2px;
   }
 }
+
+/* ---------- Density and edges ---------- */
+
+/* An analyst wants rows on screen, not whitespace. The console was laid out
+   like a marketing page: rounded cards, generous padding, four large tiles
+   consuming the top third before a single decision appeared.
+   Everything below tightens that without changing what anything says. */
+
+:root {
+  /* Squarer. Heavily rounded containers read as consumer software; a tool that
+     is meant to look like evidence should have edges. */
+  --radius: 4px;
+  --radius-sm: 3px;
+  --shadow: 0 1px 2px rgba(11, 11, 11, 0.06);
+  --mono: ui-monospace, "JetBrains Mono", "Fira Code", "Roboto Mono",
+    SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Identifiers, hashes, timestamps and tool names. These are the columns an
+   analyst scans, and in a proportional face they blur into prose — the record
+   id in particular disappeared entirely. */
+.mono,
+td.num,
+.chain-label {
+  font-family: var(--mono);
+  font-variant-ligatures: none;
+  font-size: 12px;
+}
+
+.mono {
+  letter-spacing: -0.01em;
+}
+
+/* Rows close enough to compare at a glance. */
+table th,
+table td {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+table th {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.panel {
+  border-radius: var(--radius);
+}
+
+/* The tiles become a strip. They were four cards deep enough to push the first
+   decision below the fold, which is the wrong thing to be reading first. */
+.grid-metrics {
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.grid-metrics .stat {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 10px 14px;
+}
+
+.grid-metrics .stat-value {
+  font-size: 21px;
+  font-family: var(--mono);
+}
+
+.grid-metrics .stat-label {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.grid-metrics .stat-hint {
+  font-size: 11px;
+}
+
+/* A row where something was found in the response. The marker says an incident
+   happened on this line; the badge in the row says what was done about it.
+   One colour cannot carry both, and using green alone made a contained attack
+   look like a quiet afternoon. */
+tr.row-incident td:first-child {
+  box-shadow: inset 3px 0 0 var(--status-critical);
+}
+
+tr.row-incident {
+  background: rgba(208, 59, 59, 0.035);
+}
+
+:root[data-theme="dark"] tr.row-incident {
+  background: rgba(208, 59, 59, 0.08);
+}
+
+/* How a component's status was established, above its numbers. */
+.health-checked {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 70ch;
+}
+
+.health-checked-label {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
