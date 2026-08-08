@@ -190,23 +190,51 @@ func auditVerify(args []string) error {
 	}
 	fmt.Printf("Head         %s\n", chain.Head)
 
+	// The witness state has to be read from the witness, not inferred from the
+	// chain. `anchored` only means an anchor value was computed locally, from
+	// the head and the record count — it says nothing about anyone else having
+	// seen it. Reading it as evidence of an external witness turned "we compute
+	// a number" into "an operator cannot edit this", which is the single
+	// strongest claim this product makes and would have been false.
+	body, status, err = tenantCall(http.MethodGet, base+"/api/audit/witness", token, nil)
+	if err != nil {
+		return err
+	}
+	var witness struct {
+		Configured bool   `json:"configured"`
+		Endpoint   string `json:"endpoint"`
+		Index      int    `json:"index"`
+		Head       string `json:"head"`
+		Diverged   bool   `json:"diverged"`
+		Note       string `json:"note"`
+	}
+	if status < 300 {
+		_ = json.Unmarshal(body, &witness)
+	}
+
 	fmt.Println()
-	if chain.Anchored {
-		fmt.Printf("Witness      published, holding %s\n", truncate(chain.Anchor, 32))
-		// This is the part that matters and the part that is easy to overstate.
-		// The chain alone proves nothing against whoever runs the server: they
-		// could rewrite every record and recompute every hash. The witness is
-		// what makes that visible, because it already holds an earlier head and
-		// refuses a chain that got shorter or changed underneath it.
+	switch {
+	case !witness.Configured:
+		fmt.Println("Witness      NOT configured — local anchor only")
+		fmt.Println()
+		fmt.Println("             This chain detects accidental corruption and nothing more.")
+		fmt.Println("             Anyone who can write to the database can rewrite every")
+		fmt.Println("             record and recompute every hash, and this check would")
+		fmt.Println("             still say 'intact'. Do not call it tamper-proof.")
+	case witness.Diverged:
+		fmt.Printf("Witness      %s\n", witness.Endpoint)
+		fmt.Println("             DIVERGED — the witness holds a head this server does not.")
+		fmt.Println("             Something was removed or rewritten here. Investigate before")
+		fmt.Println("             trusting anything else in this trail.")
+	default:
+		fmt.Printf("Witness      %s\n", witness.Endpoint)
+		fmt.Printf("             agrees at record %d, head %s\n", witness.Index, truncate(witness.Head, 24))
 		fmt.Println("             The witness refuses a chain that has been shortened or")
 		fmt.Println("             rewritten, so an operator cannot quietly edit this record")
-		fmt.Println("             even with full access to the server and its database.")
-	} else {
-		fmt.Println("Witness      NOT configured")
-		fmt.Println("             Without it the chain only detects accidental corruption:")
-		fmt.Println("             anyone who can write to the database can rewrite every")
-		fmt.Println("             record and recompute every hash. Say so rather than")
-		fmt.Println("             claiming tamper-proof.")
+		fmt.Println("             even with full access to this server and its database.")
+	}
+	if strings.TrimSpace(witness.Note) != "" {
+		fmt.Printf("\n             %s\n", witness.Note)
 	}
 	return nil
 }
