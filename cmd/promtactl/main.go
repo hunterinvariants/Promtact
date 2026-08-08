@@ -99,6 +99,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
+	case "audit":
+		if err := auditCommand(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	case "asset":
 		if err := assetCommand(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -829,6 +834,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  promtactl tenant create   --name acme --display \"Acme GmbH\"")
 	fmt.Fprintln(os.Stderr, "  promtactl tenant add-agent --tenant acme")
 	fmt.Fprintln(os.Stderr, "  promtactl tenant list | new-key --tenant acme --user acme-agent")
+	fmt.Fprintln(os.Stderr, "  promtactl audit trail | verify")
 	fmt.Fprintln(os.Stderr, "  promtactl asset list | remove --id <asset>")
 	fmt.Fprintln(os.Stderr, "  promtactl breakglass ...       announce direct access to the host")
 	fmt.Fprintln(os.Stderr)
