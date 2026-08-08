@@ -267,10 +267,14 @@ export default function Approvals() {
                   <td>
                     <Badge
                       tone={
+                        // Withheld and blocked are the control working, not
+                        // failures. Marking them critical reads as "something
+                        // went wrong here", which is the opposite of what
+                        // happened and undoes the point of the page.
                         action.execution_status === "withheld" || action.execution_status === "blocked"
-                          ? "critical"
+                          ? "good"
                           : action.execution_status === "executed"
-                            ? "good"
+                            ? "neutral"
                             : "warning"
                       }
                     >

@@ -1069,3 +1069,20 @@ tr.is-clickable:hover td { cursor: pointer; }
 .event-detail li {
   margin-bottom: 4px;
 }
+
+/* ---------- Demonstration ---------- */
+
+/* Side by side, because the whole argument is the comparison. Stacked on a
+   narrow screen, where two columns would each be too cramped to read. */
+.demo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .demo-grid {
+    grid-template-columns: 1fr;
+  }
+}

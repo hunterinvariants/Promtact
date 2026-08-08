@@ -28,6 +28,7 @@ import (
 	"github.com/hunterinvariants/promtact/internal/config"
 	"github.com/hunterinvariants/promtact/internal/correlator"
 	"github.com/hunterinvariants/promtact/internal/crypto"
+	"github.com/hunterinvariants/promtact/internal/demotools"
 	"github.com/hunterinvariants/promtact/internal/domain"
 	"github.com/hunterinvariants/promtact/internal/exporter"
 	"github.com/hunterinvariants/promtact/internal/license"
@@ -76,16 +77,20 @@ type App struct {
 	mcpUpstreamURL         string
 	mcpUpstreamToken       string
 	proxyAllowLocalTargets bool
-	oidc                   *oidcProvider
-	saml                   *samlProvider
-	instanceName           string
-	publicURL              string
-	tenantRegistry         *tenantRegistry
-	exportMu               sync.RWMutex
-	exportErr              string
-	startedAt              time.Time
-	counter                atomic.Uint64
-	licenseStatus          license.Status
+	// demoTools is set only when the deployment was started for a
+	// demonstration. Its absence is what keeps the console's demonstration page
+	// and its endpoint out of a production install.
+	demoTools      *demotools.Server
+	oidc           *oidcProvider
+	saml           *samlProvider
+	instanceName   string
+	publicURL      string
+	tenantRegistry *tenantRegistry
+	exportMu       sync.RWMutex
+	exportErr      string
+	startedAt      time.Time
+	counter        atomic.Uint64
+	licenseStatus  license.Status
 }
 
 type Options struct {
@@ -134,6 +139,7 @@ type Options struct {
 	ServiceNowUser            string
 	ServiceNowPassword        string
 	MCPUpstreamURL            string
+	DemoTools                 *demotools.Server
 	MCPUpstreamToken          string
 	ProxyAllowLocalTargets    bool
 	OIDCIssuerURL             string
@@ -328,6 +334,7 @@ func NewWithOptions(options Options) (*App, error) {
 		mcpUpstreamURL:         options.MCPUpstreamURL,
 		mcpUpstreamToken:       options.MCPUpstreamToken,
 		proxyAllowLocalTargets: options.ProxyAllowLocalTargets,
+		demoTools:              options.DemoTools,
 		oidc:                   oidcProvider,
 		startedAt:              time.Now().UTC(),
 		licenseStatus:          licenseStatus,
@@ -440,6 +447,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/responses", a.handleResponses)
 	mux.HandleFunc("/api/policies", a.handlePolicies)
 	mux.HandleFunc("/api/demo", a.handleDemo)
+	mux.HandleFunc("/api/demo/agent-run", a.handleDemoAgentRun)
 	mux.HandleFunc("/api/gateway/proxy", a.handleGatewayProxy)
 	mux.HandleFunc("/api/mcp/proxy", a.handleMCPProxy)
 	if a.saml != nil && a.saml.Enabled() {
@@ -539,6 +547,7 @@ func (a *App) handleStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, domain.Status{
 		Assurance:        a.assuranceFor(principal),
 		Version:          Version,
+		DemoTools:        a.demoTools != nil,
 		InstanceName:     a.instanceName,
 		PublicURL:        a.publicURL,
 		TenantIsolation:  a.tenantIsolationMode(),

@@ -3,6 +3,7 @@ import { api, ApiError, isPlatformAdmin, Session } from "./api";
 import Alerts from "./pages/Alerts";
 import Approvals from "./pages/Approvals";
 import Assets from "./pages/Assets";
+import Demonstration from "./pages/Demonstration";
 import Detections from "./pages/Detections";
 import Events from "./pages/Events";
 import Health from "./pages/Health";
@@ -19,9 +20,10 @@ type PageKey =
   | "assets"
   | "detections"
   | "tenants"
+  | "demonstration"
   | "settings";
 
-const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; title: string; subtitle: string }[] = [
+const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; demoOnly?: boolean; title: string; subtitle: string }[] = [
   { key: "overview", label: "Overview", icon: "◎", title: "Overview", subtitle: "Current posture across your estate" },
   {
     key: "health",
@@ -63,6 +65,16 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; t
     adminOnly: true,
     title: "Customers",
     subtitle: "Provision and manage tenant accounts",
+  },
+  {
+    // Only on a deployment started with --demo-tools. A button in a production
+    // console that runs a scripted attack is not a feature.
+    key: "demonstration",
+    label: "Demonstration",
+    icon: "▶",
+    demoOnly: true,
+    title: "Demonstration",
+    subtitle: "The same agent, with and without the gateway",
   },
   { key: "settings", label: "Settings", icon: "⚙", title: "Settings", subtitle: "Access and deployment details" },
 ];
@@ -174,6 +186,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [page, setPage] = useState<PageKey>("overview");
   const [theme, cycleTheme] = useTheme();
+  const [demoMode, setDemoMode] = useState(false);
 
   const refreshSession = useCallback(async () => {
     try {
@@ -189,6 +202,14 @@ export default function App() {
   useEffect(() => {
     refreshSession();
   }, [refreshSession]);
+
+  useEffect(() => {
+    if (!session?.authenticated) return;
+    api
+      .status()
+      .then((status) => setDemoMode(Boolean(status?.demo_tools)))
+      .catch(() => setDemoMode(false));
+  }, [session?.authenticated]);
 
   const signOut = async () => {
     try {
@@ -207,7 +228,9 @@ export default function App() {
   }
 
   const admin = isPlatformAdmin(session);
-  const visiblePages = PAGES.filter((item) => !item.adminOnly || admin);
+  const visiblePages = PAGES.filter(
+    (item) => (!item.adminOnly || admin) && (!item.demoOnly || demoMode),
+  );
   const active = visiblePages.find((item) => item.key === page) || visiblePages[0];
 
   const renderPage = () => {
@@ -216,6 +239,8 @@ export default function App() {
         return <Health onNavigate={setPage} />;
       case "approvals":
         return <Approvals />;
+      case "demonstration":
+        return <Demonstration onNavigate={setPage} />;
       case "alerts":
         return <Alerts />;
       case "events":

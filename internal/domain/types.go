@@ -203,7 +203,11 @@ type RuleDescriptor struct {
 }
 
 type Status struct {
-	Version          string    `json:"version"`
+	Version string `json:"version"`
+	// DemoTools marks a deployment started for a demonstration. The console
+	// hides its demonstration page unless this is set: a button that runs a
+	// scripted attack has no place in a production install.
+	DemoTools        bool      `json:"demo_tools,omitempty"`
 	InstanceName     string    `json:"instance_name,omitempty"`
 	PublicURL        string    `json:"public_url,omitempty"`
 	TenantIsolation  string    `json:"tenant_isolation,omitempty"`

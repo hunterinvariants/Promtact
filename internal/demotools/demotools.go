@@ -269,3 +269,22 @@ customer data was affected by the maintenance window.
 	}
 	return nil
 }
+
+// OutboxCount reports how many messages are sitting in the outbox, so a caller
+// can state what did or did not leave rather than describing it.
+func (s *Server) OutboxCount() (int, error) {
+	entries, err := os.ReadDir(s.Outbox())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	count := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			count++
+		}
+	}
+	return count, nil
+}

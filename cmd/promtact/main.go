@@ -119,6 +119,7 @@ func main() {
 	// rather than out of the product. A showcase somebody has to build before
 	// they can show it is a showcase that breaks in front of an audience.
 	var stopDemoTools func()
+	var demoServer *demotools.Server
 	if *demoTools {
 		directory := strings.TrimSpace(*demoDir)
 		if directory == "" {
@@ -153,6 +154,7 @@ func main() {
 			*apiToken = "demo"
 		}
 
+		demoServer = tools
 		defer stopDemoTools()
 
 		// The unguarded run needs to reach the tool server directly, and the
@@ -270,6 +272,7 @@ func main() {
 		ServiceNowUser:            *servicenowUser,
 		ServiceNowPassword:        *servicenowPassword,
 		MCPUpstreamURL:            *mcpUpstreamURL,
+		DemoTools:                 demoServer,
 		MCPUpstreamToken:          *mcpUpstreamToken,
 		ProxyAllowLocalTargets:    *proxyAllowLocalTargets,
 		OIDCIssuerURL:             *oidcIssuerURL,
