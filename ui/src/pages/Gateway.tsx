@@ -65,20 +65,25 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      try {
-        const [actions, chainState, witnessState] = await Promise.all([
-          api.actions(),
-          api.auditChain(),
-          api.auditWitness(),
-        ]);
-        if (cancelled) return;
-        setDecisions(actions || []);
-        setChain(chainState);
-        setWitness(witnessState);
+      // Settled rather than all. One refused call used to blank the whole
+      // page: an account without the role for the witness saw zeros
+      // everywhere and "Loading." forever, with a message that explained
+      // none of it. Each part now fails on its own.
+      const [actions, chainState, witnessState] = await Promise.allSettled([
+        api.actions(),
+        api.auditChain(),
+        api.auditWitness(),
+      ]);
+      if (cancelled) return;
+
+      if (actions.status === "fulfilled") {
+        setDecisions(actions.value || []);
         setError("");
-      } catch (err: any) {
-        if (!cancelled) setError(err.message || "failed to load");
+      } else {
+        setError(actions.reason?.message || "failed to load decisions");
       }
+      setChain(chainState.status === "fulfilled" ? chainState.value : null);
+      setWitness(witnessState.status === "fulfilled" ? witnessState.value : null);
     };
     load();
     const handle = window.setInterval(load, 10000);

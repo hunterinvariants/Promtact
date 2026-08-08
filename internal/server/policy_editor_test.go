@@ -176,3 +176,31 @@ func TestPolicyUpdateRecordsWhatChanged(t *testing.T) {
 		t.Error("no policy.update record was written")
 	}
 }
+
+// An analyst must be able to see whether the record is witnessed.
+//
+// This was admin-only, on the reasoning that the witness describes the operator
+// rather than a tenant's data. True, and still wrong: the witness is what makes
+// the record worth anything, and withholding it left the customer's analyst —
+// the person whose job is to verify the guarantee — unable to see whether it
+// held. The console then failed the whole page on the refusal, so an analyst
+// saw zeros everywhere with no explanation.
+func TestAnalystCanReadTheWitnessState(t *testing.T) {
+	app, _ := policyApp(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/audit/witness", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("Authorization", "Bearer an")
+	rec := httptest.NewRecorder()
+	app.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("an analyst reading the witness state got %d, want 200", rec.Code)
+	}
+	// It reveals a head hash and whether somebody outside agrees with it —
+	// nothing belonging to a tenant.
+	body := rec.Body.String()
+	if strings.Contains(body, "token_sha256") {
+		t.Error("the witness state leaked credential material")
+	}
+}

@@ -405,7 +405,15 @@ func RequiredRoles(method string, path string) []string {
 	// corroborated. That is a statement about the operator, not about a tenant's
 	// data, so it does not follow the audit-read rule below.
 	if path == "/api/audit/witness" {
-		return []string{RoleAdmin}
+		// Readable by anyone who may read the trail itself.
+		//
+		// This was admin-only on the reasoning that it describes the operator
+		// rather than a tenant's data. That is true and it was still wrong: the
+		// witness is what makes the record worth anything, and withholding it
+		// from the customer's analyst leaves exactly the person whose job is to
+		// verify the guarantee unable to see whether it holds. It exposes no
+		// tenant data — a head hash and whether somebody outside agrees with it.
+		return []string{RoleAnalyst, RoleOperator, RoleAdmin}
 	}
 	if path == "/api/audit" {
 		return []string{RoleAnalyst, RoleOperator}

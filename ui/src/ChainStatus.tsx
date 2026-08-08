@@ -30,8 +30,18 @@ export default function ChainStatus() {
 
     const check = async () => {
       try {
-        const [chain, witness] = await Promise.all([api.auditChain(), api.auditWitness()]);
+        // The witness is allowed to be unreadable — some accounts cannot see
+        // it — without that turning the whole badge into "unknown", which
+        // would say the chain is unverifiable when it is merely unwitnessed
+        // to this reader.
+        const [chainResult, witnessResult] = await Promise.allSettled([
+          api.auditChain(),
+          api.auditWitness(),
+        ]);
         if (cancelled) return;
+        if (chainResult.status !== "fulfilled") throw chainResult.reason;
+        const chain = chainResult.value;
+        const witness = witnessResult.status === "fulfilled" ? witnessResult.value : null;
 
         if (!chain?.valid) {
           setState({
