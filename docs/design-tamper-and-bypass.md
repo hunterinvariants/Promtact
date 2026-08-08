@@ -64,9 +64,13 @@ record.hash      = SHA-256(prev_hash || record)          # as now
 record.signature = KMS.Sign(record.hash)                  # new
 ```
 
-The operator can still delete rows. What they cannot do is produce a *valid*
-replacement, because forging a record needs a signature and the key cannot leave
-the KMS. Rewriting history stops being "run an UPDATE" and becomes "obtain the
+The operator can still delete rows, and it is worth being precise about what
+signing does and does not stop, because this is where the questioning goes.
+Breaking the chain does not break a signature: the old signatures stay valid on
+the records that remain. What signing prevents is producing a *replacement* —
+forging a record needs the key, and the key cannot leave the KMS. So the attack
+degrades from "rewrite history convincingly" to "delete and leave a hole", and a
+hole is what the witness receipts turn into evidence. Rewriting history stops being "run an UPDATE" and becomes "obtain the
 signing key", which is a different class of problem with its own audit trail on
 the KMS side.
 
@@ -119,6 +123,39 @@ tamper-proof.
 For an OEM buyer such as an MDR provider, this matters more than anything else
 on this page: they can hold their own witness, so their evidence does not
 depend on trusting the vendor. That is a selling point, not a concession.
+
+### Change 3b: a public transparency log as one of the witnesses
+
+A witness the vendor runs is a vendor the customer has to trust. A witness the
+customer runs is one *they* have to keep running. A public transparency log is
+neither: Sigstore's Rekor accepts a signed entry, timestamps it, and includes it
+in a Merkle tree that anyone can audit and nobody can retroactively edit.
+
+What gets published is the **root hash of a batch**, not the records. A hash
+reveals nothing about what it covers, so the usual objection — a bank will not
+put its audit trail in a public log — does not apply to the thing being
+published. Say that plainly, because the objection is reflexive and the answer
+disarms it.
+
+What *is* revealed is metadata: that this organisation runs Promtact, and how
+often it anchors. For a bank or a defence customer that alone can be
+unacceptable, and the honest answer is to offer both and let them choose:
+
+| Mode | Anchored to | Suits |
+| --- | --- | --- |
+| Public | Rekor, plus optionally a customer witness | SaaS, startups, anyone who benefits from not being trusted |
+| Private | A witness the customer operates, and one the vendor operates | Regulated customers, anything where anchoring cadence is itself sensitive |
+| Both | All of the above | The default worth recommending |
+
+Two cautions before this is promised to anyone:
+
+- Rekor was built for software supply-chain artifacts. Using it as a general
+  anchoring service is legitimate but off-label; its rate limits, retention and
+  availability guarantees need checking against a per-minute anchoring cadence
+  before the feature is sold rather than after.
+- A public log entry is permanent. Anchoring the wrong thing once cannot be
+  undone, so what goes into an entry needs to be exactly a root hash and a key
+  identifier, and nothing that could later turn out to be sensitive.
 
 ### Change 4: append-only storage for the audit stream
 
