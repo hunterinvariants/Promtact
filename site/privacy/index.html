@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy — Promtact</title>
+<title>Privacy - Promtact</title>
 <meta name="description" content="What Promtact processes, where it is kept, how long, and who can reach it.">
 <link rel="stylesheet" href="/style.css">
 </head>
@@ -15,6 +15,7 @@
   <nav>
     <a href="/security/">Security</a>
     <a href="/privacy/">Privacy</a>
+    <a href="/legal/">Legal</a>
     <a href="https://github.com/hunterinvariants/Promtact">Source</a>
   </nav>
 </header>
@@ -24,6 +25,25 @@
 
 <p class="lede">What Promtact processes, where it is kept, how long, and who can
 reach it.</p>
+
+<h2>This website</h2>
+
+<p>Separate from the product, and shorter. promtact.com sets no cookies, loads
+no fonts, scripts, images or anything else from a third party, and runs no
+analytics. Its content security policy forbids every outbound request, which is
+checkable in the response headers rather than a promise.</p>
+
+<p>The hosting provider records ordinary server logs - address, user agent,
+referrer, time, requested path - which are technically necessary to serve the
+site and to keep it available. They are not combined with anything else and are
+not used to build a profile.</p>
+
+<p>If you write to us, the message and your address are kept for as long as it
+takes to answer and to handle what follows from it, and are not passed on.</p>
+
+<p>Under the revised Swiss Data Protection Act you may ask what is held about
+you, and ask for it to be corrected or deleted. The address for that is in the
+<a href="/legal/">legal notice</a>.</p>
 
 <h2>Two situations, two answers</h2>
 
@@ -43,7 +63,7 @@ the call's arguments.</p>
 
 <div class="note">
 <strong>The honest part:</strong> a tool call's arguments are whatever the agent
-passed — a query, a file path, an email body, a customer record. Promtact cannot
+passed - a query, a file path, an email body, a customer record. Promtact cannot
 know in advance what your agents handle, so it must be assumed that this field
 can contain personal data.
 <br><br>
@@ -60,7 +80,7 @@ retention window, <strong>30 days by default</strong> and configurable per
 deployment. Deletion is by age; there is no separate archive.</p>
 
 <p>Tenant accounts, their users and API key hashes are kept until the tenant is
-deleted, as is the audit chain state — discarding it would break the
+deleted, as is the audit chain state - discarding it would break the
 tamper-evidence of everything remaining.</p>
 
 <h2>Encryption</h2>
@@ -69,8 +89,8 @@ tamper-evidence of everything remaining.</p>
 origin over an outbound-only tunnel. The service binds to loopback and is not
 directly reachable.</p>
 
-<p><strong>At rest:</strong> values that are verifiers — API keys, recovery
-codes — are stored only as hashes and cannot be recovered. Values that must be
+<p><strong>At rest:</strong> values that are verifiers - API keys, recovery
+codes - are stored only as hashes and cannot be recovered. Values that must be
 readable to work, currently only TOTP seeds, are sealed with envelope
 encryption: a per-record key wrapped by a key held outside the database.</p>
 
@@ -89,8 +109,8 @@ property of the underlying storage and is not provided by Promtact.
 </table>
 
 <p>The hosted deployment runs on a single virtual machine in Europe, with the
-database on the same host. Integrations you configure yourself — a webhook, a
-ticket system, a SIEM — are your choice and your relationship, not
+database on the same host. Integrations you configure yourself - a webhook, a
+ticket system, a SIEM - are your choice and your relationship, not
 sub-processors of Promtact.</p>
 
 <h2>Your rights</h2>
@@ -113,7 +133,7 @@ it, is
 <a href="https://github.com/hunterinvariants/Promtact/blob/main/docs/data-protection.md">docs/data-protection.md</a>.</p>
 
 <footer class="site">
-  <p>Promtact — <a href="https://github.com/hunterinvariants/Promtact">source on GitHub</a></p>
+  <p>Promtact - <a href="https://github.com/hunterinvariants/Promtact">source on GitHub</a></p>
   <p>Security reports: <a href="/.well-known/security.txt">security.txt</a></p>
 </footer>
 
