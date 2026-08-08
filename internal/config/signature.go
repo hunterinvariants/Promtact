@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"strings"
@@ -46,6 +47,21 @@ func policySignatureRequired() bool {
 }
 
 // SignPolicyFile writes the detached signature for a policy document.
+//
+// The signature inherits the policy file's ownership and permissions rather
+// than being written 0600 root-only.
+//
+// Signing is normally done as root, while the service runs as its own user. A
+// root-only signature is therefore unreadable to the process that has to verify
+// it, and because an unreadable file and an absent one are the same branch in
+// verifyPolicySignature, the service refuses to start - with a message saying
+// the signature is missing when it is sitting right there. On a host that
+// restarts daily that turns one forgotten chmod into a service that does not
+// come back, hours later, for a reason the message misdescribes.
+//
+// The signature is not secret: it is an HMAC that proves the policy was not
+// altered, and it is worthless to anyone without the key. Matching the policy's
+// own mode is both sufficient and correct.
 func SignPolicyFile(path string) (string, error) {
 	key := policyHMACKey()
 	if len(key) == 0 {
@@ -55,11 +71,47 @@ func SignPolicyFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Fall back to 0600 only when the policy's own mode cannot be read, which
+	// should not happen given the ReadFile above succeeded.
+	mode := os.FileMode(0o600)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+
 	sigPath := path + ".sig"
-	if err := os.WriteFile(sigPath, []byte(PolicySignature(data, key)+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(sigPath, []byte(PolicySignature(data, key)+"\n"), mode); err != nil {
+		return "", err
+	}
+	// WriteFile does not apply the mode to a file that already exists, and a
+	// re-signed policy is the common case rather than the rare one.
+	if err := os.Chmod(sigPath, mode); err != nil {
+		return "", err
+	}
+	if err := matchOwner(path, sigPath); err != nil {
 		return "", err
 	}
 	return sigPath, nil
+}
+
+// CheckPolicyFile answers the question the service will ask at its next start,
+// now, while somebody is still watching.
+//
+// The failure this exists for is entirely a timing problem: editing a policy and
+// forgetting to re-sign it changes nothing until the next restart, which on a
+// host that reboots daily happens hours later, unattended, and takes the service
+// down until a human intervenes. The check costs nothing and can run in a shell,
+// in a deploy script, or as an ExecStartPre.
+//
+// It reads the same files, with the same key, through the same comparison as
+// startup - deliberately not a reimplementation, because a check that can
+// disagree with the thing it is checking is worse than no check.
+func CheckPolicyFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return verifyPolicySignature(path, data)
 }
 
 // verifyPolicySignature enforces the detached signature next to the policy file.
@@ -73,7 +125,21 @@ func verifyPolicySignature(path string, data []byte) error {
 
 	if len(key) > 0 {
 		if sigErr != nil {
-			return fmt.Errorf("policy signature %q is missing but a signing key is configured: %w", sigPath, sigErr)
+			// "Missing" and "there but unreadable" are the same branch and very
+			// different problems, and the second is the likely one: signing runs
+			// as root, the service runs as its own user. Reporting a file that
+			// is sitting right there as missing sends the reader to look for the
+			// wrong fault, at a restart, with the service down.
+			if errors.Is(sigErr, fs.ErrPermission) {
+				return fmt.Errorf("policy signature %q exists but this process cannot read it: %w"+
+					" (signing usually runs as root while the service runs as its own user;"+
+					" the signature needs the same owner and mode as the policy)", sigPath, sigErr)
+			}
+			if errors.Is(sigErr, fs.ErrNotExist) {
+				return fmt.Errorf("policy signature %q is missing but a signing key is configured:"+
+					" run `promtactl sign-policy --file %s` after every change to the policy", sigPath, path)
+			}
+			return fmt.Errorf("policy signature %q could not be read: %w", sigPath, sigErr)
 		}
 		expected := PolicySignature(data, key)
 		provided := strings.TrimSpace(string(sigBytes))

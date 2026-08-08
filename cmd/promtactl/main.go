@@ -158,12 +158,26 @@ func tokenHash(args []string) error {
 func signPolicyCommand(args []string) error {
 	fs := flag.NewFlagSet("sign-policy", flag.ContinueOnError)
 	filePath := fs.String("file", "", "policy JSON to sign")
+	// --check answers, now, what the service will decide at its next start.
+	// Editing a policy and forgetting to re-sign it is invisible until then, and
+	// on a host that reboots daily "then" is the next morning, unattended.
+	check := fs.Bool("check", false, "verify the existing signature instead of writing one")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if strings.TrimSpace(*filePath) == "" {
 		return errors.New("sign-policy requires --file")
 	}
+
+	if *check {
+		if err := config.CheckPolicyFile(*filePath); err != nil {
+			fmt.Fprintf(os.Stderr, "%s would NOT start:\n  %v\n", *filePath, err)
+			return errors.New("the policy and its signature do not agree")
+		}
+		fmt.Printf("%s verifies - the service will start with this policy\n", *filePath)
+		return nil
+	}
+
 	sigPath, err := config.SignPolicyFile(*filePath)
 	if err != nil {
 		return err
@@ -865,6 +879,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  promtactl bench [--url http://localhost:8080] [--token TOKEN] [--requests N] [--concurrency N]")
 	fmt.Fprintln(os.Stderr, "  promtactl sign-manifest --file threatpack.manifest.json")
 	fmt.Fprintln(os.Stderr, "  promtactl sign-policy --file policy.json")
+	fmt.Fprintln(os.Stderr, "  promtactl sign-policy --check --file policy.json   will the service start with this?")
 	fmt.Fprintln(os.Stderr, "  promtactl license keygen")
 	fmt.Fprintln(os.Stderr, "  promtactl license issue --private-key KEY --org ACME [--features sso,multi-tenant] [--valid-for 8760h]")
 	fmt.Fprintln(os.Stderr, "  promtactl license verify --public-key KEY --token TOKEN")
