@@ -64,6 +64,12 @@ func auditTrail(args []string) error {
 	fs := flag.NewFlagSet("audit trail", flag.ContinueOnError)
 	common := tenantCommonFlags(fs)
 	last := fs.Int("last", 10, "how many records to show")
+	// The trail claims to show what the gateway decided, and it was showing
+	// failed logins - which on a public deployment arrive constantly and bury
+	// every decision under themselves. Filtering by default is a presentation
+	// choice, so what was left out is always stated rather than silently
+	// dropped: a trail that hides records without saying so is not a trail.
+	all := fs.Bool("all", false, "include authentication and administration records, not only decisions")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -92,11 +98,34 @@ func auditTrail(args []string) error {
 	for left, right := 0, len(records)-1; left < right; left, right = left+1, right-1 {
 		records[left], records[right] = records[right], records[left]
 	}
+	hidden := 0
+	if !*all {
+		kept := records[:0]
+		for _, record := range records {
+			if isDecisionRecord(record) {
+				kept = append(kept, record)
+				continue
+			}
+			hidden++
+		}
+		records = kept
+	}
+	if len(records) == 0 {
+		fmt.Println("No decisions recorded.")
+		if hidden > 0 {
+			fmt.Printf("%d other record(s) exist - authentication and administration. Use --all.\n", hidden)
+		}
+		return nil
+	}
 	if *last > 0 && len(records) > *last {
 		records = records[len(records)-*last:]
 	}
 
-	fmt.Printf("%s\nWhat the gateway decided, oldest first\n%s\n", strings.Repeat("─", 68), strings.Repeat("─", 68))
+	heading := "What the gateway decided, oldest first"
+	if *all {
+		heading = "Every audit record, oldest first"
+	}
+	fmt.Printf("%s\n%s\n%s\n", strings.Repeat("-", 68), heading, strings.Repeat("-", 68))
 
 	for _, record := range records {
 		meta := record.Metadata
@@ -108,12 +137,12 @@ func auditTrail(args []string) error {
 		if tool := meta["tool"]; tool != "" {
 			fmt.Printf("           tool      %s\n", tool)
 		}
-		if actor := strings.TrimSpace(record.Actor); actor != "" {
-			fmt.Printf("           by        %s\n", actor)
+		// Who decided. For a refusal this is the whole point: "a person said no"
+		// is worth nothing if the record cannot say which person.
+		if by := firstNonBlank(meta["declined_by"], meta["approved_by"], record.Actor); by != "" {
+			fmt.Printf("           by        %s\n", by)
 		}
-		if reason := meta["result_reason"]; reason != "" {
-			fmt.Printf("           because   %s\n", reason)
-		} else if reason := meta["reason"]; reason != "" {
+		if reason := firstNonBlank(meta["result_reason"], meta["reason"]); reason != "" {
 			fmt.Printf("           because   %s\n", reason)
 		}
 		if record.ID != "" {
@@ -121,7 +150,12 @@ func auditTrail(args []string) error {
 		}
 	}
 
-	fmt.Printf("\n%s\n", strings.Repeat("─", 68))
+	fmt.Printf("\n%s\n", strings.Repeat("-", 68))
+	if hidden > 0 {
+		fmt.Printf("%d authentication and administration record(s) are in the chain but not\n", hidden)
+		fmt.Println("shown here. They are hash-linked like everything else; use --all to see them.")
+		fmt.Println()
+	}
 	fmt.Println("Each record is hash-linked to the one before it. Run")
 	fmt.Println("`promtactl audit verify` to check the chain and the external witness.")
 	fmt.Println()
@@ -131,20 +165,44 @@ func auditTrail(args []string) error {
 	return nil
 }
 
+// isDecisionRecord separates what the gateway decided about a tool call, and
+// what a person decided about a held one, from the rest of the chain.
+//
+// Everything stays in the chain; this only decides what a reader is shown by
+// default. On a deployment reachable from the internet, failed logins arrive
+// steadily, and with them included `audit trail --last 5` showed five
+// authentication failures and not one decision.
+func isDecisionRecord(record auditRecord) bool {
+	action := strings.ToLower(strings.TrimSpace(record.Action))
+	for _, prefix := range []string{"gateway.", "mcp.", "responses.", "tool_"} {
+		if strings.HasPrefix(action, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func describeOutcome(record auditRecord, meta map[string]string) string {
 	switch record.Outcome {
 	case "withheld":
-		return "WITHHELD — a tool's answer was kept from the agent"
+		return "WITHHELD - a tool's answer was kept from the agent"
 	case "pending_approval":
-		return "HELD — waiting for a person"
+		return "HELD - waiting for a person"
 	case "blocked":
-		return "DENIED — the call did not run"
+		return "DENIED - the call did not run"
+	case "declined":
+		// A person refusing a held call is not the same event as policy
+		// refusing one, and showing both as "denied" loses the distinction that
+		// makes the approval queue worth having.
+		return "REFUSED - a person declined it"
+	case "approved":
+		return "APPROVED - a person released it"
 	case "executed":
 		return "allowed"
 	case "removed":
-		return "REMOVED — an asset and its records were deleted"
+		return "REMOVED - an asset and its records were deleted"
 	case "failed":
-		return "FAILED — " + meta["error"]
+		return "FAILED - " + meta["error"]
 	default:
 		return record.Outcome
 	}
