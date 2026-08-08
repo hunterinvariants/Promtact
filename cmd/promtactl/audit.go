@@ -30,6 +30,8 @@ func auditCommand(args []string) error {
 	switch args[0] {
 	case "trail":
 		return auditTrail(args[1:])
+	case "receipts":
+		return auditReceipts(args[1:])
 	case "verify":
 		return auditVerify(args[1:])
 	default:
@@ -41,9 +43,11 @@ func auditCommand(args []string) error {
 func auditUsage() {
 	fmt.Fprintln(os.Stderr, "usage: promtactl audit trail [--last 10]")
 	fmt.Fprintln(os.Stderr, "       promtactl audit verify")
+	fmt.Fprintln(os.Stderr, "       promtactl audit receipts [--public-key @witness.pub] [--all]")
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "trail  — what the gateway decided, in order, in plain language")
-	fmt.Fprintln(os.Stderr, "verify — whether the chain is intact and what the external witness holds")
+	fmt.Fprintln(os.Stderr, "trail    - what the gateway decided, in order, in plain language")
+	fmt.Fprintln(os.Stderr, "verify   - whether the chain is intact and what the external witness holds")
+	fmt.Fprintln(os.Stderr, "receipts - check the witness's signatures offline, against a key you hold")
 }
 
 type auditRecord struct {

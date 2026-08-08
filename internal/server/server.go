@@ -62,7 +62,7 @@ type App struct {
 	journal                *decisionJournal
 	structuredLogs         bool
 	tracer                 *tracer
-	witness                *witness
+	witness                *witnessClient
 	breakglass             *breakglassRegister
 	accessLog              *accessLogState
 	degradedMu             sync.Mutex
@@ -413,6 +413,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/admin/breakglass", a.handleBreakglass)
 	mux.HandleFunc("/api/admin/breakglass/", a.handleBreakglassClose)
 	mux.HandleFunc("/api/audit/witness", a.handleAuditWitness)
+	mux.HandleFunc("/api/audit/receipts", a.handleAuditReceipts)
 	mux.HandleFunc("/api/scim/v2/ServiceProviderConfig", a.handleSCIMServiceProviderConfig)
 	mux.HandleFunc("/api/scim/v2/Users", a.handleSCIMUsers)
 	mux.HandleFunc("/api/scim/v2/Users/", a.handleSCIMUser)

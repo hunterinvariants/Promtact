@@ -414,6 +414,40 @@ CREATE TABLE IF NOT EXISTS promtact_tool_credentials (
 CREATE INDEX IF NOT EXISTS idx_promtact_tool_credentials_tenant
 ON promtact_tool_credentials (tenant);`,
 	},
+	{
+		Version: 10,
+		Name:    "witness_receipts",
+		SQL: `
+-- Signed statements from an external witness about what it saw, and when.
+--
+-- Publishing a head to a witness already turns rewritten history into a
+-- disagreement. But noticing the disagreement means asking the witness, and
+-- that answer is only as good as the witness being reachable and honest at the
+-- moment the question is asked. A stored receipt can be checked offline, by
+-- anyone holding the public key, without the witness and without trusting the
+-- operator who handed over the database.
+--
+-- The consequence worth having is about absence: every witnessed record has a
+-- receipt, so a range without one was never witnessed. That turns a gap from
+-- "no evidence" into evidence.
+--
+-- Deliberately outside retention. Every other table here ages out; deleting the
+-- proof that a range was witnessed would reopen the hole this fills, on a
+-- schedule, automatically.
+CREATE TABLE IF NOT EXISTS promtact_witness_receipts (
+  chain_index BIGINT PRIMARY KEY,
+  head TEXT NOT NULL,
+  -- Stored as text, exactly as the witness sent it. A timestamptz round trip
+  -- renormalises precision, and the signature is over the original characters:
+  -- reformatting the timestamp turns a valid receipt into a forgery report.
+  witnessed_at TEXT NOT NULL,
+  -- Empty for a witness that predates receipt signing. An unsigned receipt is
+  -- reported as unsigned rather than as valid or as a failure.
+  signature TEXT,
+  key_id TEXT,
+  stored_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);`,
+	},
 }
 
 func (s *Store) postgresLoad(ctx context.Context) error {

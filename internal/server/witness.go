@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/hunterinvariants/promtact/internal/auth"
+	"github.com/hunterinvariants/promtact/internal/witness"
 )
 
 // External witnessing of the audit chain.
@@ -39,7 +40,7 @@ type witnessState struct {
 	WitnessAt time.Time `json:"witnessed_at"`
 }
 
-type witness struct {
+type witnessClient struct {
 	endpoint string
 	token    string
 	client   *http.Client
@@ -48,21 +49,22 @@ type witness struct {
 	lastSeen witnessState
 	lastErr  string
 	mismatch bool
+	unsigned bool
 }
 
-func newWitness(endpoint string, token string) *witness {
+func newWitness(endpoint string, token string) *witnessClient {
 	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
 	if endpoint == "" {
 		return nil
 	}
-	return &witness{
+	return &witnessClient{
 		endpoint: endpoint,
 		token:    strings.TrimSpace(token),
 		client:   &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
-func (w *witness) enabled() bool { return w != nil && w.endpoint != "" }
+func (w *witnessClient) enabled() bool { return w != nil && w.endpoint != "" }
 
 // ErrChainDiverged means the local chain and the witness disagree. It is the
 // one error here that is not an operational hiccup: it says the local history
@@ -126,7 +128,67 @@ func (a *App) PublishAuditAnchor(ctx context.Context) error {
 	if err := json.Unmarshal(body, &accepted); err == nil {
 		a.witness.noteAccepted(accepted)
 	}
+
+	// Store the witness's signed statement about what it just accepted.
+	//
+	// This is what makes the claim checkable later without the witness: an
+	// auditor holding the database and the public key can verify offline that a
+	// third party attested to this head at this time. It also means a range with
+	// no receipt is positive evidence that the range was never witnessed, rather
+	// than an absence anyone can wave away.
+	//
+	// A failure to store is logged and not returned: the anchoring itself
+	// succeeded, and turning a local write problem into a publish failure would
+	// make the service retry an anchor the witness has already accepted.
+	var receipt witness.Receipt
+	if err := json.Unmarshal(body, &receipt); err == nil && receipt.Head != "" {
+		if err := a.store.SaveWitnessReceipt(receipt); err != nil {
+			log.Printf("storing the witness receipt for record %d failed: %v", receipt.ChainIndex, err)
+		} else if !receipt.Signed() {
+			a.witness.noteUnsigned()
+		}
+	}
 	return nil
+}
+
+// handleAuditReceipts serves the stored witness receipts.
+//
+// It deliberately does not verify them. Verification belongs wherever the
+// public key is, and the value of a receipt is precisely that it can be checked
+// by someone who does not trust this server - a server that graded its own
+// receipts and reported "all valid" would be asking to be taken on trust, which
+// is the one thing this mechanism exists to avoid.
+func (a *App) handleAuditReceipts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	principal := principalFromRequest(r)
+	if !principal.HasAny(auth.RoleAdmin, auth.RoleOperator, auth.RoleAnalyst) {
+		writeError(w, http.StatusForbidden, errors.New("analyst role required"))
+		return
+	}
+	receipts, err := a.store.WitnessReceipts()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if receipts == nil {
+		receipts = []witness.Receipt{}
+	}
+	signed := 0
+	for _, receipt := range receipts {
+		if receipt.Signed() {
+			signed++
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"receipts": receipts,
+		"count":    len(receipts),
+		"signed":   signed,
+		"note": "Verify these against the witness public key, not here. " +
+			"A server grading its own receipts proves nothing.",
+	})
 }
 
 // VerifyAgainstWitness compares the local chain with what the witness holds. It
@@ -211,7 +273,7 @@ func (a *App) StartAuditWitness(ctx context.Context, every time.Duration) {
 // mismatch flag: a divergence, once seen, is cleared only by a verification that
 // agrees. Clearing it here would mean an operator could rewrite history and let
 // the next interval's publish silence the alarm.
-func (w *witness) noteAccepted(state witnessState) {
+func (w *witnessClient) noteAccepted(state witnessState) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.lastSeen = state
@@ -220,7 +282,17 @@ func (w *witness) noteAccepted(state witnessState) {
 	}
 }
 
-func (w *witness) noteError(message string) {
+// noteUnsigned records that the witness accepted an anchor but returned no
+// signature. That is not an error - an older witness does exactly this - but it
+// means the receipt cannot be checked offline, so it must not be presented as
+// if it could.
+func (w *witnessClient) noteUnsigned() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.unsigned = true
+}
+
+func (w *witnessClient) noteError(message string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.lastErr = message
@@ -230,21 +302,21 @@ func (w *witness) noteError(message string) {
 // next successful publish; only an explicit verification that agrees may clear
 // it, otherwise an operator could rewrite history and wait one interval for the
 // alarm to go quiet.
-func (w *witness) noteMismatch(message string) {
+func (w *witnessClient) noteMismatch(message string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.mismatch = true
 	w.lastErr = message
 }
 
-func (w *witness) clearMismatch() {
+func (w *witnessClient) clearMismatch() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.mismatch = false
 	w.lastErr = ""
 }
 
-func (w *witness) status() (witnessState, bool, string) {
+func (w *witnessClient) status() (witnessState, bool, string) {
 	if !w.enabled() {
 		return witnessState{}, false, ""
 	}

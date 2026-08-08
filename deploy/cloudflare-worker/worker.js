@@ -18,7 +18,7 @@ export default {
     // The witness lives here rather than on the monitored host for the same
     // reason the alert receiver does, only more so: its whole purpose is to hold
     // a record the host's operator cannot rewrite.
-    if (url.pathname === "/anchor") {
+    if (url.pathname === "/anchor" || url.pathname === "/anchor/pubkey") {
       return handleAnchor(request, env, url);
     }
 
@@ -230,6 +230,26 @@ async function handleAnchor(request, env, url) {
   if (!env.ANCHORS) {
     return new Response("witness storage not bound", { status: 503 });
   }
+
+  // The verification key is public by definition, and an auditor holding only a
+  // database copy needs it without also being given the anchoring secret.
+  // Gating it behind the shared secret would mean handing out a credential that
+  // can also write anchors, just to let somebody read.
+  if (url.pathname === "/anchor/pubkey") {
+    if (request.method !== "GET") {
+      return new Response("GET only", { status: 405 });
+    }
+    const publicKey = await witnessPublicKey(env);
+    if (!publicKey) {
+      return json({ error: "this witness has no signing key configured" }, 503);
+    }
+    return json({
+      key_id: env.WITNESS_KEY_ID || "w1",
+      public_key: publicKey,
+      algorithm: "ECDSA-P256-SHA256",
+    }, 200);
+  }
+
   const auth = request.headers.get("Authorization") || "";
   const presented = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!timingSafeEqual(presented, secret)) {
@@ -299,6 +319,21 @@ async function handleAnchor(request, env, url) {
     reported_at: String(submitted.at || ""),
   };
 
+  // Sign what was accepted, so the gateway can store proof of what a third
+  // party saw and when.
+  //
+  // Without this, checking an old claim means asking this Worker and trusting
+  // that it answers honestly and still exists. With it, anyone holding the
+  // public key can verify the statement offline - including an auditor handed
+  // nothing but a database copy, and including a customer who has stopped
+  // trusting the vendor. A receipt that cannot be produced for a range is then
+  // positive evidence that the range was never witnessed.
+  const signature = await signRecord(env, record);
+  if (signature) {
+    record.signature = signature;
+    record.key_id = env.WITNESS_KEY_ID || "w1";
+  }
+
   // The per-index record is written first. If the second write fails, the
   // witness has the stricter of the two states rather than a forgotten index.
   if (!existing) {
@@ -317,4 +352,108 @@ function json(body, status) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/**
+ * Receipt signing.
+ *
+ * ECDSA on P-256 rather than Ed25519: both are fine cryptographically, but
+ * P-256 is guaranteed present in the Workers Web Crypto implementation, while
+ * Ed25519 support has moved around between runtime versions. A signature scheme
+ * that works until the runtime is updated is worse than a slightly more
+ * awkward one that always works.
+ *
+ * The awkwardness is that Web Crypto emits the signature as raw r||s while Go
+ * verifies ASN.1 by default; the Go side splits the 64 bytes, which is all the
+ * conversion amounts to.
+ */
+
+const WITNESS_DOMAIN = "promtact-witness-v1";
+
+/**
+ * The exact string that gets signed. It must match SigningString() in
+ * internal/witness/receipt.go byte for byte - so it is built from the fields,
+ * not from serialised JSON, because JSON key order and whitespace are not
+ * guaranteed to survive a round trip and a verifier that a reformatting proxy
+ * can break is not worth having.
+ */
+function signingString(record) {
+  return [
+    WITNESS_DOMAIN,
+    String(record.chain_index),
+    String(record.head || "").trim().toLowerCase(),
+    record.witnessed_at,
+  ].join("|");
+}
+
+let cachedSigningKey = null;
+
+async function witnessSigningKey(env) {
+  if (cachedSigningKey) return cachedSigningKey;
+  if (!env.WITNESS_SIGNING_JWK) return null;
+  try {
+    const jwk = JSON.parse(env.WITNESS_SIGNING_JWK);
+    cachedSigningKey = await crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["sign"]
+    );
+    return cachedSigningKey;
+  } catch (err) {
+    console.error(`witness signing key could not be imported: ${err}`);
+    return null;
+  }
+}
+
+async function signRecord(env, record) {
+  const key = await witnessSigningKey(env);
+  if (!key) return null;
+  try {
+    const signature = await crypto.subtle.sign(
+      { name: "ECDSA", hash: "SHA-256" },
+      key,
+      new TextEncoder().encode(signingString(record))
+    );
+    return base64(signature);
+  } catch (err) {
+    // A witness that cannot sign still witnesses. Refusing the anchor because
+    // the signature failed would turn a signing misconfiguration into a loss of
+    // the witnessing this endpoint existed for in the first place.
+    console.error(`signing the anchor failed: ${err}`);
+    return null;
+  }
+}
+
+/**
+ * The public half, derived from the private JWK rather than configured
+ * separately - two settings that must agree is two settings that can disagree,
+ * and a published key that does not match the signing key would make every
+ * receipt look forged.
+ */
+async function witnessPublicKey(env) {
+  if (!env.WITNESS_SIGNING_JWK) return null;
+  try {
+    const jwk = JSON.parse(env.WITNESS_SIGNING_JWK);
+    const publicJWK = { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y, ext: true };
+    const publicKey = await crypto.subtle.importKey(
+      "jwk",
+      publicJWK,
+      { name: "ECDSA", namedCurve: "P-256" },
+      true,
+      ["verify"]
+    );
+    return base64(await crypto.subtle.exportKey("spki", publicKey));
+  } catch (err) {
+    console.error(`witness public key could not be derived: ${err}`);
+    return null;
+  }
+}
+
+function base64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
 }

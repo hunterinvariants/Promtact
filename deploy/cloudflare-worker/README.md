@@ -60,6 +60,52 @@ a denial-of-service target. It is compared in constant time. Delivery failures
 are logged rather than returned, so a dead downstream cannot make the sender
 believe the alert was rejected and retry it indefinitely.
 
+## Signed witness receipts
+
+The witness records what it saw. Signing that record is what lets somebody check
+it later without asking the witness anything - including an auditor holding a
+database copy and no network access, and including a customer who has stopped
+taking the vendor's word for it.
+
+Generate a P-256 key and install it as a secret. The private half never leaves
+Cloudflare; the public half is served at `/anchor/pubkey` and is meant to be
+handed out.
+
+```bash
+node -e "(async()=>{const k=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);console.log(JSON.stringify(await crypto.subtle.exportKey('jwk',k.privateKey)))})()"
+```
+
+```bash
+wrangler secret put WITNESS_SIGNING_JWK
+```
+
+Then fetch the public key once and keep it somewhere that is not the gateway:
+
+```bash
+curl -s https://alerts.example.com/anchor/pubkey | tee witness.pub.json
+```
+
+Checking the receipts is then an offline operation:
+
+```bash
+promtactl audit receipts --all --public-key @witness.pub
+```
+
+Two things worth being precise about, because both get overstated:
+
+- A receipt proves a third party saw this head at this time. It does not prove
+  the contents of any record, and it does not stop an operator deleting one.
+  What it changes is that deleting one leaves a range with no receipt, and that
+  is evidence rather than an absence.
+- While the vendor operates the only witness, the vendor is still trusted. The
+  arrangement that removes that is a second witness the customer runs. The
+  signing scheme here is the same either way, which is the point: an OEM buyer
+  can hold their own key without any code changing.
+
+**Version skew is normal and safe.** A witness without a signing key still
+witnesses; receipts are then stored unsigned and reported as unsigned rather
+than as valid or as failures.
+
 ## Availability monitoring
 
 The Worker also checks that the deployment answers from the internet, on a

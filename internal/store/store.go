@@ -10,6 +10,7 @@ import (
 
 	"github.com/hunterinvariants/promtact/internal/crypto"
 	"github.com/hunterinvariants/promtact/internal/domain"
+	"github.com/hunterinvariants/promtact/internal/witness"
 )
 
 type Store struct {
@@ -26,6 +27,7 @@ type Store struct {
 	auditChainAnchor string
 	assets           map[string]domain.Asset
 	credentials      map[string]storedCredential
+	receipts         map[int]witness.Receipt
 	fingerprints     map[string]struct{}
 	path             string
 	lastErr          string
@@ -38,6 +40,7 @@ func New() *Store {
 		mode:            "memory",
 		assets:          make(map[string]domain.Asset),
 		credentials:     make(map[string]storedCredential),
+		receipts:        make(map[int]witness.Receipt),
 		fingerprints:    make(map[string]struct{}),
 		auditChainValid: true,
 	}

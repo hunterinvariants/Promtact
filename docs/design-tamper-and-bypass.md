@@ -89,7 +89,35 @@ else in key management: the KMS is in a different account or subscription with
 its own access control, and its own audit log records who signed what. Say that,
 rather than implying the key is magic.
 
-### Change 2: witness every batch, and store the countersignature
+### Change 2: witness every batch, and store the countersignature — built
+
+The witness now signs each head it accepts, with an ECDSA P-256 key held as a
+Cloudflare secret, and the gateway stores the signed receipt beside the chain.
+`promtactl audit receipts --public-key @witness.pub` checks them **offline**:
+the witness is not contacted and the server's own opinion is never asked for.
+
+Two details cost real debugging and are worth keeping in mind for the next
+component that crosses a language boundary:
+
+- Web Crypto emits an ECDSA signature as raw `r||s`; Go's `VerifyASN1` expects
+  ASN.1 DER. The Go side splits the 64 bytes.
+- The receipt's timestamp is signed **as the exact text the witness sent**.
+  Parsing it into a `time.Time` and re-rendering with `time.RFC3339` silently
+  dropped the milliseconds that JavaScript's `toISOString()` always emits, so
+  every receipt the real Worker produced was reported as a forgery - while every
+  Go test passed, because the fake witness in those tests happened to use whole
+  seconds. The fixture is now output from the Worker's own functions, including
+  the milliseconds.
+
+Receipts are immutable once stored and are excluded from retention. Everything
+else here ages out; deleting the proof that a range was witnessed would reopen
+this hole on a schedule.
+
+What this still does not do: it does not stop deletion, and while the vendor
+runs the only witness, the vendor is still trusted. Change 3 is what removes
+that, and the signing scheme already supports it unchanged.
+
+### Change 2 as originally specified
 
 Today the witness holds a head. Make it *return a signed receipt* for each head
 it accepts, and store that receipt alongside the chain.
@@ -301,8 +329,8 @@ problem the gateway was never going to solve.
 
 1. ~~**Credential brokering** (Change 6)~~ — **done**. Largest effect, no
    infrastructure dependency, turns bypass into a dead end.
-2. **Witness receipts** (Change 2). Converts absence of evidence into evidence,
-   and needs only the Cloudflare Worker that already exists. Ahead of KMS
+2. ~~**Witness receipts** (Change 2)~~ — **done**. Converts absence of evidence
+   into evidence, on the Cloudflare Worker that already existed. Ahead of KMS
    deliberately: the threat being defended against is the operator, and a key
    the operator's own server uses is a key the operator can eventually reach. A
    third party able to contradict the server is what bites in that case; a
