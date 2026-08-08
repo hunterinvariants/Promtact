@@ -1129,3 +1129,85 @@ tr.is-clickable:hover td { cursor: pointer; }
     content: "";
   }
 }
+
+/* ---------- Chain status ---------- */
+
+/* Permanent, in the header, on every page. What separates this from a log
+   viewer is the integrity of the record, and a guarantee somebody has to go
+   looking for is one they do not believe. */
+.chain-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.chain-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex: none;
+}
+
+/* Muted deliberately. A bright green pill is the visual language of an uptime
+   monitor; this is a statement about evidence, and it should read as sober. */
+.chain-verified {
+  border-color: #2f6f4f;
+  color: #2f6f4f;
+}
+.chain-verified .chain-dot {
+  background: #2f6f4f;
+}
+
+.chain-internal {
+  border-color: #8a6d1f;
+  color: #8a6d1f;
+}
+.chain-internal .chain-dot {
+  background: #8a6d1f;
+}
+
+.chain-broken {
+  border-color: #9b2c2c;
+  color: #9b2c2c;
+  font-weight: 600;
+}
+.chain-broken .chain-dot {
+  background: #9b2c2c;
+}
+
+:root[data-theme="dark"] .chain-verified {
+  border-color: #5aa47c;
+  color: #7bc79c;
+}
+:root[data-theme="dark"] .chain-verified .chain-dot {
+  background: #7bc79c;
+}
+:root[data-theme="dark"] .chain-internal {
+  border-color: #b8912f;
+  color: #d8b04a;
+}
+:root[data-theme="dark"] .chain-internal .chain-dot {
+  background: #d8b04a;
+}
+:root[data-theme="dark"] .chain-broken {
+  border-color: #c25050;
+  color: #e07a7a;
+}
+:root[data-theme="dark"] .chain-broken .chain-dot {
+  background: #e07a7a;
+}
+
+@media print {
+  .chain-status {
+    display: none;
+  }
+}

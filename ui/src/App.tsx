@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, isPlatformAdmin, Session } from "./api";
+import ChainStatus from "./ChainStatus";
 import Approvals from "./pages/Approvals";
 import Connect from "./pages/Connect";
 import Demonstration from "./pages/Demonstration";
@@ -66,19 +67,19 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; d
     subtitle: "What agents did, what was stopped, and why the record can be relied on",
   },
   {
-    key: "health",
-    label: "System health",
-    icon: "❍",
-    title: "System health",
-    subtitle: "Whether every part of the deployment is doing its job",
-  },
-  {
     key: "tenants",
     label: "Customers",
     icon: "⚭",
     adminOnly: true,
     title: "Customers",
     subtitle: "Provision and manage tenant accounts",
+  },
+  {
+    key: "health",
+    label: "System health",
+    icon: "❍",
+    title: "System health",
+    subtitle: "Whether every part of the deployment is doing its job",
   },
   { key: "settings", label: "Settings", icon: "⚙", title: "Settings", subtitle: "Access and deployment details" },
 ];
@@ -323,6 +324,7 @@ export default function App() {
             <div className="topbar-sub">{active.subtitle}</div>
           </div>
           <div className="spacer" />
+          <ChainStatus />
           <button className="btn" onClick={cycleTheme} title={`Theme: ${theme}`}>
             {theme === "dark" ? "☾" : theme === "light" ? "☀" : "◐"} Theme
           </button>

@@ -186,12 +186,18 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
           </Empty>
         ) : (
           <table>
+            {/* Ordered as an analyst reads an incident: when, who asked, what
+                they asked for, what was decided, why, and the record it is on.
+                The record id is last and in a monospace face because it is the
+                column that says this is a ledger rather than a log. */}
             <thead>
               <tr>
-                <th>Tool</th>
-                <th>Outcome</th>
-                <th>Why</th>
                 <th>When</th>
+                <th>Agent</th>
+                <th>Tool</th>
+                <th>Decision</th>
+                <th>Reason</th>
+                <th>Record</th>
               </tr>
             </thead>
             <tbody>
@@ -202,18 +208,22 @@ export default function Gateway({ onNavigate }: { onNavigate?: (page: any) => vo
                 return (
                   <Fragment key={decision.id}>
                     <tr className="is-clickable" onClick={() => setExpanded(open ? null : decision.id)}>
+                      <td className="num panel-note" style={{ whiteSpace: "nowrap" }}>
+                        {decision.created_at ? new Date(decision.created_at).toLocaleString() : "—"}
+                      </td>
+                      <td className="mono">{meta.agent_id || meta.actor || "—"}</td>
                       <td className="mono">{meta.tool || decision.type || "—"}</td>
                       <td>
                         <Badge tone={outcome.tone}>{outcome.label}</Badge>
                       </td>
                       <td className="panel-note">{meta.result_reason || decision.reason || "—"}</td>
-                      <td className="num panel-note">
-                        {decision.created_at ? new Date(decision.created_at).toLocaleString() : "—"}
+                      <td className="mono panel-note" style={{ whiteSpace: "nowrap" }}>
+                        {decision.id ? decision.id.slice(0, 22) : "—"}
                       </td>
                     </tr>
                     {open ? (
                       <tr>
-                        <td colSpan={4} className="event-detail">
+                        <td colSpan={6} className="event-detail">
                           <dl>
                             {[
                               ["Tool", meta.tool],
