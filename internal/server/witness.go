@@ -324,3 +324,31 @@ func (a *App) handleAuditWitness(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, body)
 }
+
+// witnessView is the witness's view gathered in one call, for a caller that
+// needs it alongside other things — the report, principally, which must not
+// describe the chain and the witness from two different moments.
+type witnessView struct {
+	Configured     bool
+	Agrees         bool
+	Diverged       bool
+	WitnessedIndex int
+	WitnessedHead  string
+	WitnessedAt    time.Time
+}
+
+func (a *App) witnessSnapshot(ctx context.Context) witnessView {
+	if !a.witness.enabled() {
+		return witnessView{}
+	}
+	remote, err := a.VerifyAgainstWitness(ctx)
+	_, diverged, _ := a.witness.status()
+	return witnessView{
+		Configured:     true,
+		Agrees:         err == nil,
+		Diverged:       diverged,
+		WitnessedIndex: remote.Index,
+		WitnessedHead:  remote.Head,
+		WitnessedAt:    remote.WitnessAt,
+	}
+}

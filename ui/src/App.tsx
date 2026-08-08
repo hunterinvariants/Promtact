@@ -1,28 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, isPlatformAdmin, Session } from "./api";
-import Alerts from "./pages/Alerts";
 import Approvals from "./pages/Approvals";
-import Assets from "./pages/Assets";
 import Demonstration from "./pages/Demonstration";
-import Detections from "./pages/Detections";
 import Gateway from "./pages/Gateway";
-import Events from "./pages/Events";
 import Health from "./pages/Health";
-import Overview from "./pages/Overview";
 import Policy from "./pages/Policy";
+import Report from "./pages/Report";
 import Settings from "./pages/Settings";
 import Tenants from "./pages/Tenants";
 
 type PageKey =
   | "gateway"
-  | "overview"
   | "health"
   | "approvals"
   | "policy"
-  | "alerts"
-  | "events"
-  | "assets"
-  | "detections"
+  | "report"
   | "tenants"
   | "demonstration"
   | "settings";
@@ -58,24 +50,18 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; d
     subtitle: "What agents may call, and where they may reach",
   },
   {
+    key: "report",
+    label: "Report",
+    icon: "☷",
+    title: "Report",
+    subtitle: "What agents did, what was stopped, and why the record can be relied on",
+  },
+  {
     key: "health",
     label: "System health",
     icon: "❍",
     title: "System health",
     subtitle: "Whether every part of the deployment is doing its job",
-  },
-  // Below here is the older, host-shaped view. It is kept because the data is
-  // real and occasionally useful, and demoted because a gateway is not an
-  // endpoint product and its console should not open on alerts about hosts.
-  { key: "alerts", label: "Alerts", icon: "⚑", title: "Alerts", subtitle: "Correlated detections awaiting triage" },
-  { key: "events", label: "Events", icon: "≡", title: "Events", subtitle: "Everything collected, searchable" },
-  { key: "assets", label: "Assets", icon: "▤", title: "Assets", subtitle: "Hosts and agent surfaces under watch" },
-  {
-    key: "detections",
-    label: "Detection coverage",
-    icon: "◈",
-    title: "Detection coverage",
-    subtitle: "ATT&CK techniques the gateway enforces",
   },
   {
     key: "tenants",
@@ -252,22 +238,14 @@ export default function App() {
         return <Approvals />;
       case "policy":
         return <Policy />;
+      case "report":
+        return <Report />;
       case "demonstration":
         return <Demonstration onNavigate={setPage} />;
-      case "alerts":
-        return <Alerts />;
-      case "events":
-        return <Events />;
-      case "assets":
-        return <Assets />;
-      case "detections":
-        return <Detections />;
       case "tenants":
         return <Tenants />;
       case "settings":
         return <Settings session={session} />;
-      case "overview":
-        return <Overview onNavigate={setPage} />;
       default:
         return <Gateway onNavigate={setPage} />;
     }

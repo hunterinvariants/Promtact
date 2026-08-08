@@ -1086,3 +1086,35 @@ tr.is-clickable:hover td { cursor: pointer; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Print ---------- */
+
+/* The report is filed and forwarded, so it has to survive leaving the screen.
+   Navigation, controls and colour go; the content and its structure stay. */
+@media print {
+  .no-print,
+  .sidebar,
+  .topbar button {
+    display: none !important;
+  }
+
+  .shell {
+    display: block;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .panel {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #ccc;
+    margin-bottom: 12px;
+  }
+
+  a[href]::after {
+    content: "";
+  }
+}

@@ -55,12 +55,11 @@ export const api = {
   logout: () => request<unknown>("/api/session", { method: "DELETE" }),
 
   status: () => request<any>("/api/status"),
-  alerts: () => request<any[]>("/api/alerts"),
-  assets: () => request<any[]>("/api/assets"),
-  events: () => request<any[]>("/api/events"),
   actions: () => request<any[]>("/api/responses"),
   auditChain: () => request<any>("/api/audit/chain"),
   auditWitness: () => request<any>("/api/audit/witness"),
+  report: (from: string, to: string) =>
+    request<any>(`/api/report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   policy: () => request<any>("/api/policy"),
   updatePolicy: (body: { approved_tools: string[]; approved_egress_hosts: string[] }) =>
     request<any>("/api/policy", { method: "PUT", body: JSON.stringify(body) }),
