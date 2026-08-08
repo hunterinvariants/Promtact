@@ -28,6 +28,7 @@ type Store struct {
 	assets           map[string]domain.Asset
 	credentials      map[string]storedCredential
 	receipts         map[int]witness.Receipt
+	checkpoint       *AuditCheckpoint
 	fingerprints     map[string]struct{}
 	path             string
 	lastErr          string

@@ -28,6 +28,14 @@ type AuditChainSnapshot struct {
 	// asking. It is a count and nothing more: validity belongs to the chain,
 	// which is global.
 	TenantRecords int `json:"tenant_records,omitempty"`
+
+	// Retention removed records from the start of the chain, and verification
+	// resumed from a signed checkpoint. Reported so a reader is told that the
+	// chain is shorter than its history rather than being left to infer it -
+	// "intact" over a chain whose first year was deleted, with no mention of
+	// the deletion, would be an honest-looking answer to the wrong question.
+	PrunedRecords int `json:"pruned_records,omitempty"`
+	PrunedThrough int `json:"pruned_through,omitempty"`
 }
 
 // finalizeAuditChainSnapshot enforces coverage honesty: a chain that does not
@@ -61,10 +69,23 @@ func (s *Store) prepareAuditChainLocked(event domain.AuditEvent) domain.AuditEve
 
 func (s *Store) rebuildAuditChainLocked() {
 	head := ""
-	previous := ""
 	total := len(s.audits)
 	linked := 0
 	valid := true
+
+	// Start from the retention boundary rather than from nothing.
+	//
+	// Without this, pruning the oldest records leaves the first survivor
+	// pointing at a hash that is no longer stored, previous is "", and the
+	// chain reports BROKEN forever - on a deployment where retention did
+	// exactly what it was configured to do. That false alarm was live, and a
+	// permanently broken indicator is worse than none, because the one signal
+	// that should mean something stops meaning anything.
+	//
+	// The seed is only used when the checkpoint is signed by this deployment's
+	// key. An unsigned one explains nothing, and seeding from it would mean
+	// that writing a row to a table erases history.
+	previous, _ := s.chainSeedLocked()
 	for _, audit := range s.audits {
 		if strings.TrimSpace(audit.Hash) == "" {
 			continue
@@ -112,6 +133,10 @@ func (s *Store) auditChainSnapshotLocked() AuditChainSnapshot {
 	if snap.Head == "" {
 		snap.Valid = snap.Total == 0
 		snap.Anchored = false
+	}
+	if checkpoint, ok := s.latestCheckpointLocked(); ok {
+		snap.PrunedRecords = checkpoint.RemovedCount
+		snap.PrunedThrough = checkpoint.PrunedThrough
 	}
 	return snap
 }

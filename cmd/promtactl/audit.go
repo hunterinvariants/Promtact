@@ -169,13 +169,15 @@ func auditVerify(args []string) error {
 		return fmt.Errorf("reading the chain failed (%d): %s", status, strings.TrimSpace(string(body)))
 	}
 	var chain struct {
-		Total    int    `json:"total"`
-		Linked   int    `json:"linked"`
-		Unlinked int    `json:"unlinked"`
-		Head     string `json:"head"`
-		Valid    bool   `json:"valid"`
-		Anchor   string `json:"anchor"`
-		Anchored bool   `json:"anchored"`
+		Total         int    `json:"total"`
+		Linked        int    `json:"linked"`
+		Unlinked      int    `json:"unlinked"`
+		Head          string `json:"head"`
+		Valid         bool   `json:"valid"`
+		Anchor        string `json:"anchor"`
+		Anchored      bool   `json:"anchored"`
+		PrunedRecords int    `json:"pruned_records"`
+		PrunedThrough int    `json:"pruned_through"`
 	}
 	if err := json.Unmarshal(body, &chain); err != nil {
 		return fmt.Errorf("unexpected response: %s", body)
@@ -193,6 +195,17 @@ func auditVerify(args []string) error {
 		fmt.Println("Chain        BROKEN — a record has been changed or removed")
 	}
 	fmt.Printf("Head         %s\n", chain.Head)
+
+	// A chain can be intact and still be missing its first year. Reporting only
+	// "intact" over a shortened history answers a question nobody asked, and
+	// leaves the reader to discover the deletion later, from somebody else.
+	if chain.PrunedRecords > 0 {
+		fmt.Printf("Retention    %d earlier record(s) removed, through record %d\n",
+			chain.PrunedRecords, chain.PrunedThrough)
+		fmt.Println("             Verification resumes from a signed checkpoint at that")
+		fmt.Println("             boundary. The removed records are gone: this says they")
+		fmt.Println("             left by policy, not that they can still be examined.")
+	}
 
 	// The witness state has to be read from the witness, not inferred from the
 	// chain. `anchored` only means an anchor value was computed locally, from

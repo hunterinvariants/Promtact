@@ -448,6 +448,36 @@ CREATE TABLE IF NOT EXISTS promtact_witness_receipts (
   stored_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );`,
 	},
+	{
+		Version: 11,
+		Name:    "audit_retention_checkpoints",
+		SQL: `
+-- Where retention cut the audit chain, so a legitimate deletion can be told
+-- apart from an attack.
+--
+-- A hash chain and a deletion policy contradict each other: pruning the oldest
+-- records leaves the first survivor linking to a hash that is no longer stored,
+-- and verification then reports BROKEN permanently, on a deployment where
+-- nothing was touched. That false alarm was live, and an indicator that is
+-- always red is worse than none.
+--
+-- The checkpoint has to link, not merely assert: hash is the last removed
+-- record's hash, and the first surviving record must point at it. A deletion
+-- from the middle produces a checkpoint that does not join up and the chain
+-- stays broken. It is HMAC-signed with the chain anchor key as well, so writing
+-- a plausible one needs the key rather than table access.
+--
+-- Single row: only the most recent boundary is needed, and this table is one
+-- that must never itself be pruned.
+CREATE TABLE IF NOT EXISTS promtact_audit_checkpoints (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  pruned_through INTEGER NOT NULL,
+  hash TEXT NOT NULL,
+  removed_count BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  signature TEXT
+);`,
+	},
 }
 
 func (s *Store) postgresLoad(ctx context.Context) error {
@@ -464,6 +494,11 @@ func (s *Store) postgresLoad(ctx context.Context) error {
 		return err
 	}
 	if err := s.postgresLoadAudits(ctx); err != nil {
+		return err
+	}
+	// Before the chain is rebuilt: without the retention boundary the survivors
+	// link to records that are gone and the chain reads as broken.
+	if err := s.loadCheckpointLocked(ctx); err != nil {
 		return err
 	}
 	s.rebuildFingerprintsLocked()

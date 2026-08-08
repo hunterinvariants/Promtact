@@ -195,7 +195,34 @@ nicely.
 
 The database stays the working copy. The locked store is the evidence copy.
 
-### Change 5: resolve the retention conflict honestly
+### Change 5: resolve the retention conflict honestly - built
+
+A checkpoint is written at the moment of pruning, holding the last removed
+record's hash, and verification resumes from it. Two properties make it a
+control rather than a note-to-self:
+
+- **It has to link.** The checkpoint's hash must equal the first survivor's
+  PrevHash. A record removed from the middle produces a checkpoint that does not
+  join up and the chain stays broken. A checkpoint that merely asserted "records
+  were removed here" would be an erasure tool.
+- **It is HMAC-signed** with the chain anchor key, and an unsigned or mismatched
+  checkpoint is refused as a seed - leaving the chain reported broken, which is
+  the safe direction.
+
+It also has to survive persistence, which is separate from being computed
+correctly: the boundary is carried in the file snapshot and in Postgres, and in
+restored backups.
+
+Worth recording how this was verified, because the unit tests did not find it.
+`enforceRetentionLocked` replaces the audit slice without re-validating, so a
+running process keeps reporting valid until something rebuilds - which happens
+on load. **The false alarm therefore appears at the next restart, not at the
+prune.** Reproduced by running the pre-checkpoint binary through a prune and
+restarting it on the same data: valid before, `valid: false` after. The same
+scenario on the current binary reports valid with `pruned_records: 3`, and
+reports broken again if the anchor key does not match the checkpoint signature.
+
+### Change 5 as originally specified
 
 A hash chain and a deletion policy contradict each other, and this bit us in
 production: retention pruned old records and the verification reported BROKEN,
@@ -339,8 +366,8 @@ problem the gateway was never going to solve.
    into "the operator needs a key they do not have". Worth documenting as a
    customer option before running it ourselves - Cloud KMS is inexpensive but
    not free, and an OEM buyer will want their own key anyway.
-4. **Retention checkpoints** (Change 5). Removes a permanent false alarm that is
-   already live.
+4. ~~**Retention checkpoints** (Change 5)~~ - **done**. Removed a false alarm
+   that would have appeared at the first restart after retention pruned.
 5. **Multiple witnesses** (Change 3). The claim that matters to an OEM buyer.
 6. **Egress manifests and append-only storage** (Changes 4 and 7). Deployment
    assets.

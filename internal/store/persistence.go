@@ -22,6 +22,13 @@ type Snapshot struct {
 	Actions []domain.ResponseAction `json:"actions"`
 	Audits  []domain.AuditEvent     `json:"audits"`
 	Assets  map[string]domain.Asset `json:"assets"`
+
+	// Checkpoint is where retention cut the audit chain. Without it in the
+	// snapshot, a file-backed deployment loses the boundary on restart, the
+	// survivors link to records that are gone, and the chain reports BROKEN -
+	// which is precisely the false alarm the checkpoint exists to remove, only
+	// deferred to the next start instead of appearing immediately.
+	Checkpoint *AuditCheckpoint `json:"audit_checkpoint,omitempty"`
 }
 
 func NewWithPath(path string) (*Store, error) {
@@ -57,6 +64,9 @@ func NewWithPath(path string) (*Store, error) {
 	} else {
 		s.rebuildAssetsLocked()
 	}
+	// Before the chain is rebuilt, for the same reason it is loaded before the
+	// rebuild in Postgres mode.
+	s.checkpoint = snap.Checkpoint
 	s.rebuildFingerprintsLocked()
 	s.rebuildAuditChainLocked()
 	return s, nil
@@ -77,6 +87,8 @@ func (s *Store) snapshotLocked() Snapshot {
 		Actions: append([]domain.ResponseAction(nil), s.actions...),
 		Audits:  append([]domain.AuditEvent(nil), s.audits...),
 		Assets:  cloneAssets(s.assets),
+
+		Checkpoint: s.checkpoint,
 	}
 }
 
@@ -95,6 +107,10 @@ func (s *Store) RestoreSnapshot(snap Snapshot) error {
 	} else {
 		restored.rebuildAssetsLocked()
 	}
+	// A backup restored without its retention boundary would verify as broken,
+	// which would turn every restore of a long-lived deployment into an
+	// investigation.
+	restored.checkpoint = snap.Checkpoint
 	restored.rebuildFingerprintsLocked()
 
 	if restored.db != nil {
@@ -283,6 +299,13 @@ func (s *Store) enforceRetentionLocked() error {
 		return nil
 	}
 
+	// Record what retention is about to remove from the audit chain, before it
+	// is gone. A hash chain and a deletion policy contradict each other, and
+	// without a checkpoint the survivors link back to records that no longer
+	// exist - reporting BROKEN for the rest of the deployment's life, on a
+	// system where nothing was attacked.
+	s.recordRetentionCheckpointLocked(removedAuditRefs(s.audits, retained.Audits))
+
 	s.events = append([]domain.Event(nil), retained.Events...)
 	s.alerts = append([]domain.Alert(nil), retained.Alerts...)
 	s.actions = append([]domain.ResponseAction(nil), retained.Actions...)
@@ -298,6 +321,31 @@ func (s *Store) enforceRetentionLocked() error {
 
 	s.lastErr = ""
 	return nil
+}
+
+// removedAuditRefs is the set difference by ID: which audit records are in the
+// store now but not in what retention decided to keep.
+//
+// Comparing by ID rather than assuming the retained set is a prefix means a
+// non-contiguous removal is still described correctly, and the checkpoint that
+// results simply will not link - which is the right outcome, because a
+// non-contiguous removal is not something retention does.
+func removedAuditRefs(before []domain.AuditEvent, after []domain.AuditEvent) []auditRef {
+	if len(before) == len(after) {
+		return nil
+	}
+	kept := make(map[string]struct{}, len(after))
+	for _, audit := range after {
+		kept[audit.ID] = struct{}{}
+	}
+	var removed []auditRef
+	for _, audit := range before {
+		if _, ok := kept[audit.ID]; ok {
+			continue
+		}
+		removed = append(removed, auditRef{index: audit.ChainIndex, hash: audit.Hash})
+	}
+	return removed
 }
 
 func (s *Store) retainedSnapshotLocked(cutoff time.Time) Snapshot {
