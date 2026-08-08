@@ -107,6 +107,35 @@ export default function Approvals() {
     [actions],
   );
 
+  // Refusing is the other half of holding a call.
+  //
+  // Until this existed the queue could only be approved out of, and approving
+  // executes - so the person a call was held for had exactly one available
+  // answer. A control that stops an action to ask a human, then offers that
+  // human no way to say no, is not asking a question.
+  const decline = async (action: Action) => {
+    const reason = window.prompt(
+      "Why are you refusing this call? This goes into the audit record, and it is " +
+        "the half of the decision that a bare 'declined' cannot express.",
+      "",
+    );
+    // Cancelled, or nothing typed: do not refuse without a reason, and do not
+    // pretend something happened.
+    if (reason === null || !reason.trim()) return;
+
+    setBusy(action.id);
+    setNotice("");
+    try {
+      await api.declineAction(action.id, reason.trim(), "console");
+      await load();
+      setNotice("Refused. The call will not run, and the refusal is in the audit record with your reason.");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const approve = async (action: Action) => {
     setBusy(action.id);
     setNotice("");
@@ -178,6 +207,16 @@ export default function Approvals() {
                           }}
                         >
                           {busy === action.id ? "Releasing…" : "Approve"}
+                        </button>
+                        <button
+                          className="btn"
+                          disabled={busy === action.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            decline(action);
+                          }}
+                        >
+                          Refuse
                         </button>
                       </td>
                     </tr>

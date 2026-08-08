@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, isPlatformAdmin, Session } from "./api";
+import { api, ApiError, isPlatformAdmin, Session, setUnauthorizedHandler } from "./api";
 import ChainStatus from "./ChainStatus";
 import Approvals from "./pages/Approvals";
 import Connect from "./pages/Connect";
@@ -216,6 +216,19 @@ export default function App() {
   useEffect(() => {
     refreshSession();
   }, [refreshSession]);
+
+  // Stop everything the moment the session is gone.
+  //
+  // The pages poll on ten-second timers; without this they kept polling an
+  // expired session forever. Dropping to the sign-in screen unmounts them,
+  // which is what actually stops the requests - and it is also what the user
+  // needs to see, rather than a console quietly showing stale data.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setSession((current) => (current?.authenticated ? { authenticated: false } : current));
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   useEffect(() => {
     if (!session?.authenticated) return;

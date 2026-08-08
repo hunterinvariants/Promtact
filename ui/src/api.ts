@@ -22,12 +22,36 @@ export class ApiError extends Error {
   }
 }
 
+// What to do when the session is gone.
+//
+// Four pages poll on a ten-second timer. When the session expired they kept
+// polling anyway, forever: on the live deployment one forgotten browser tab
+// produced 2432 rejected requests, and because the server recorded each one,
+// more than two thirds of the tamper-evident audit chain became this console
+// failing to log in.
+//
+// Stopping belongs here rather than in each page. A page that polls is not the
+// place that knows the session ended, and adding the check to four call sites
+// means the fifth one will not have it.
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
     credentials: "same-origin",
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
   });
+
+  // A rejected sign-in is the user mistyping a key, not an expired session, so
+  // it must not tear down the session it is trying to create.
+  const isSignIn = path === "/api/session" && (options.method || "GET").toUpperCase() === "POST";
+  if (response.status === 401 && !isSignIn && onUnauthorized) {
+    onUnauthorized();
+  }
 
   const text = await response.text();
   let payload: any = null;
@@ -76,6 +100,13 @@ export const api = {
     request<any>("/api/responses/approve", {
       method: "POST",
       body: JSON.stringify({ action_id: actionID, approved_by: approvedBy }),
+    }),
+  // The reason is required by the server, and it is the point: a refusal with
+  // none recorded answers "was this allowed" but not "why not".
+  declineAction: (actionID: string, reason: string, declinedBy?: string) =>
+    request<any>("/api/responses/decline", {
+      method: "POST",
+      body: JSON.stringify({ action_id: actionID, reason, declined_by: declinedBy }),
     }),
   validation: () => request<any>("/api/gateway/validation"),
 
