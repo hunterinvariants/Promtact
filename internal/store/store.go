@@ -25,6 +25,7 @@ type Store struct {
 	auditChainValid  bool
 	auditChainAnchor string
 	assets           map[string]domain.Asset
+	credentials      map[string]storedCredential
 	fingerprints     map[string]struct{}
 	path             string
 	lastErr          string
@@ -36,6 +37,7 @@ func New() *Store {
 	return &Store{
 		mode:            "memory",
 		assets:          make(map[string]domain.Asset),
+		credentials:     make(map[string]storedCredential),
 		fingerprints:    make(map[string]struct{}),
 		auditChainValid: true,
 	}

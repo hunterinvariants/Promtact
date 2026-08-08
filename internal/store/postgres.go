@@ -378,6 +378,42 @@ CREATE TABLE IF NOT EXISTS promtact_session_taint (
 CREATE INDEX IF NOT EXISTS idx_promtact_session_taint_age
 ON promtact_session_taint (tainted_at);`,
 	},
+	{
+		Version: 9,
+		Name:    "tool_credentials",
+		SQL: `
+-- Tool credentials the gateway presents on an agent's behalf.
+--
+-- The agent holds a token this gateway accepts and nothing else does, so an
+-- agent that finds a route around the gateway arrives at the tool without any
+-- authority. Bypassing stops being a shortcut and becomes a dead end.
+--
+-- secret_sealed is envelope-encrypted with a key held outside this database,
+-- because unlike an API key this value has to be recoverable to be useful, and
+-- a readable table here would mean every customer's upstream keys in every
+-- backup. The store refuses to write a row at all when no key is configured.
+CREATE TABLE IF NOT EXISTS promtact_tool_credentials (
+  id TEXT PRIMARY KEY,
+  tenant TEXT NOT NULL,
+  -- An exact tool name, a "prefix_*" wildcard, or "*" as the tenant fallback.
+  tool TEXT NOT NULL,
+  header TEXT NOT NULL DEFAULT '',
+  scheme TEXT NOT NULL DEFAULT '',
+  secret_sealed TEXT NOT NULL,
+  -- A short digest, so an operator can confirm which secret is installed and
+  -- that a rotation replaced it, without any API that reads the value back.
+  fingerprint TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  rotated_at TIMESTAMPTZ,
+  last_used_at TIMESTAMPTZ,
+  use_count BIGINT NOT NULL DEFAULT 0
+);
+
+-- Selection happens per tool call, in the latency path, and always by tenant.
+CREATE INDEX IF NOT EXISTS idx_promtact_tool_credentials_tenant
+ON promtact_tool_credentials (tenant);`,
+	},
 }
 
 func (s *Store) postgresLoad(ctx context.Context) error {

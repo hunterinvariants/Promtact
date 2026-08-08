@@ -158,6 +158,32 @@ func preflightCommand(args []string) error {
 		fix: "check the database before demonstrating anything about the record",
 	})
 
+	// Brokering is reported rather than required. A deployment that has not
+	// adopted it is not broken, it just cannot make the dead-end claim, and the
+	// difference is worth knowing before somebody asks.
+	if credBody, credStatus, credErr := tenantCall(http.MethodGet, base+"/api/credentials", token, nil); credErr == nil && credStatus < 300 {
+		var creds struct {
+			Credentials []struct {
+				Tool string `json:"tool"`
+			} `json:"credentials"`
+			StaticUpstreamToken bool `json:"static_upstream_token"`
+		}
+		if json.Unmarshal(credBody, &creds) == nil {
+			count := len(creds.Credentials)
+			detail := fmt.Sprintf("%d credential(s) held by the gateway", count)
+			if count > 0 && creds.StaticUpstreamToken {
+				detail += ", with a static token still set as the fallback"
+			}
+			if count == 0 {
+				detail = "none - the agent holds its own tool credentials, so a route around the gateway still works"
+			}
+			add(preflightCheck{
+				name: "Credential brokering", ok: count > 0, detail: detail,
+				fix: "promtactl credential set --tool <name>, then remove that secret from the agent",
+			})
+		}
+	}
+
 	// Not a fault, but the thing most likely to confuse an audience: a queue
 	// left over from an earlier run makes the guarded run look like it leaked.
 	add(preflightCheck{

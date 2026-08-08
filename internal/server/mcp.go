@@ -76,7 +76,10 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isMCPPassthroughMethod(rpc.Method) {
-		resp, status, err := a.forwardMCPRequest(r.Context(), raw, rpc.Method, a.gatewayMCPUpstream(), a.gatewayMCPUpstreamToken())
+		// Protocol chatter rather than a tool invocation, so it carries the
+		// gateway's own relationship with the upstream, not a brokered
+		// per-tool credential.
+		resp, status, err := a.forwardMCPRequest(r.Context(), raw, rpc.Method, a.gatewayMCPUpstream(), a.staticUpstreamAuth())
 		if err != nil {
 			writeError(w, http.StatusBadGateway, err)
 			return
@@ -100,7 +103,12 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 
 		switch decision.Verdict {
 		case domain.GatewayAllow:
-			resp, status, err := a.forwardMCPRequest(r.Context(), raw, rpc.Method, a.gatewayMCPUpstream(), a.gatewayMCPUpstreamToken())
+			// The credential is resolved only once the call has been allowed.
+			// An agent whose call is refused never causes the gateway to reach
+			// for a secret at all, so a denied call cannot be used to probe
+			// which credentials exist.
+			credential, brokerNote := a.brokerUpstreamAuth(tenant, toolCall.ToolName)
+			resp, status, err := a.forwardMCPRequest(r.Context(), raw, rpc.Method, a.gatewayMCPUpstream(), credential)
 			if err != nil {
 				writeError(w, http.StatusBadGateway, err)
 				return
@@ -120,6 +128,22 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 			action.Metadata["mcp_method"] = rpc.Method
 			action.Metadata["mcp_upstream_url"] = a.gatewayMCPUpstream()
 			action.Metadata["mcp_raw_request"] = base64.RawURLEncoding.EncodeToString(raw)
+			// Which credential was presented, never the credential itself. The
+			// fingerprint is enough to answer "what did the agent use to do
+			// this" during an investigation, and worthless to anyone reading
+			// the record hoping to reuse it.
+			if credential.CredentialID != "" {
+				action.Metadata["credential_id"] = credential.CredentialID
+				action.Metadata["credential_fingerprint"] = credential.Fingerprint
+				action.Metadata["credential_broker"] = "gateway"
+			} else if !credential.empty() {
+				action.Metadata["credential_broker"] = "static_upstream_token"
+			} else {
+				action.Metadata["credential_broker"] = "none"
+			}
+			if brokerNote != "" {
+				action.Metadata["credential_note"] = brokerNote
+			}
 			if len(inspection.Findings) > 0 {
 				action.Metadata["result_findings"] = strings.Join(inspection.Findings, ",")
 				action.Metadata["result_reason"] = inspection.Reason
@@ -231,7 +255,7 @@ func (a *App) handleMCPProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp, status, err := a.forwardMCPRequest(r.Context(), raw, rpc.Method, a.gatewayMCPUpstream(), a.gatewayMCPUpstreamToken())
+	resp, status, err := a.forwardMCPRequest(r.Context(), raw, rpc.Method, a.gatewayMCPUpstream(), a.staticUpstreamAuth())
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
@@ -322,7 +346,7 @@ func mcpResultText(response []byte) string {
 	return strings.Join(collected, "\n")
 }
 
-func (a *App) forwardMCPRequest(ctx context.Context, raw []byte, method string, upstreamURL string, upstreamToken string) ([]byte, int, error) {
+func (a *App) forwardMCPRequest(ctx context.Context, raw []byte, method string, upstreamURL string, credential upstreamAuth) ([]byte, int, error) {
 	target, err := validateProxyUpstreamURL(ctx, upstreamURL, true)
 	if err != nil {
 		return nil, 0, err
@@ -335,8 +359,11 @@ func (a *App) forwardMCPRequest(ctx context.Context, raw []byte, method string, 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Promtact-Proxy", "mcp")
 	req.Header.Set("X-Promtact-Method", method)
-	if token := strings.TrimSpace(upstreamToken); token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+	// The credential is attached here and nowhere earlier, so it exists on the
+	// outbound request only. It is never copied into the tool call, the
+	// decision, the audit record or anything the agent can read back.
+	if !credential.empty() {
+		req.Header.Set(credential.Header, credential.Value)
 	}
 	client := validatedHTTPClient(target)
 	resp, err := client.Do(req)

@@ -114,6 +114,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
+	case "credential":
+		if err := credentialCommand(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	case "preflight":
 		if err := preflightCommand(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -840,6 +845,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  promtactl tenant add-agent --tenant acme")
 	fmt.Fprintln(os.Stderr, "  promtactl tenant list | new-key --tenant acme --user acme-agent")
 	fmt.Fprintln(os.Stderr, "  promtactl audit trail | verify")
+	fmt.Fprintln(os.Stderr, "  promtactl credential list | set --tool NAME | remove --id ID")
 	fmt.Fprintln(os.Stderr, "  promtactl preflight            what is not ready, before a demonstration")
 	fmt.Fprintln(os.Stderr, "  promtactl asset list | remove --id <asset>")
 	fmt.Fprintln(os.Stderr, "  promtactl breakglass ...       announce direct access to the host")

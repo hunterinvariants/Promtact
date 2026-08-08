@@ -204,9 +204,40 @@ with a general-purpose capability has routes the gateway does not see.
 Being "in the path" is a property of the deployment, not of the software. So the
 software has to make the alternative routes useless.
 
-### Change 6: the gateway holds the credentials, the agent does not
+### Change 6: the gateway holds the credentials, the agent does not — built
 
-This is the change that does the work.
+This is the change that does the work, and it is now in the product.
+
+`promtactl credential set --tool <name>` installs a secret the gateway presents
+upstream; the agent keeps only its gateway token. Selection is by exact tool
+name, a `prefix_*` wildcard, or `*` as the tenant fallback, most specific first.
+Secrets are sealed at rest with the existing envelope encryption, and the store
+refuses to write one at all when no key is configured rather than quietly
+putting a customer's production key in every backup.
+
+Three properties are enforced by test rather than by intention:
+
+- The secret reaches the tool and appears in no response, no audit record and
+  no action metadata. What is recorded is a fingerprint - enough to answer
+  "which credential did the agent use" during an investigation, useless to
+  anyone hoping to reuse it.
+- An agent presenting its gateway token directly to a tool that checks its own
+  authentication is refused, while the same call through the gateway succeeds.
+  Both halves are asserted, because a test showing only the refusal would pass
+  just as well if the tool were simply unreachable.
+- A call released by a person goes out under the same brokered credential it
+  would have used had it been allowed outright. Otherwise approval would
+  quietly change which identity the tool saw, and on an upstream that accepts
+  only the brokered key every approved call would fail while every allowed one
+  worked.
+
+Deployments that have not adopted brokering fall back to the statically
+configured upstream token and are unaffected.
+
+The remaining gap is procedural and worth stating to a customer plainly: while
+the agent still holds the original secret, none of this changes anything. The
+credential has to be removed from the agent for the dead end to exist, and no
+software can confirm that has happened.
 
 Today an agent holds an API key for the tool it calls, and Promtact sits beside
 that relationship. Invert it: **the tool credentials live in the gateway**, and
@@ -268,11 +299,18 @@ problem the gateway was never going to solve.
 
 ## Order of work
 
-1. **Credential brokering** (Change 6). Largest effect, no infrastructure
-   dependency, turns bypass into a dead end.
-2. **Signed records via KMS** (Change 1). Turns "the operator can rewrite this"
-   into "the operator needs a key they do not have".
-3. **Witness receipts** (Change 2). Converts absence of evidence into evidence.
+1. ~~**Credential brokering** (Change 6)~~ — **done**. Largest effect, no
+   infrastructure dependency, turns bypass into a dead end.
+2. **Witness receipts** (Change 2). Converts absence of evidence into evidence,
+   and needs only the Cloudflare Worker that already exists. Ahead of KMS
+   deliberately: the threat being defended against is the operator, and a key
+   the operator's own server uses is a key the operator can eventually reach. A
+   third party able to contradict the server is what bites in that case; a
+   local signature is not.
+3. **Signed records via KMS** (Change 1). Turns "the operator can rewrite this"
+   into "the operator needs a key they do not have". Worth documenting as a
+   customer option before running it ourselves - Cloud KMS is inexpensive but
+   not free, and an OEM buyer will want their own key anyway.
 4. **Retention checkpoints** (Change 5). Removes a permanent false alarm that is
    already live.
 5. **Multiple witnesses** (Change 3). The claim that matters to an OEM buyer.

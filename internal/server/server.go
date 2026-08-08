@@ -439,6 +439,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/assets/", a.handleAssetResource)
 	mux.HandleFunc("/api/audit", a.handleAudit)
 	mux.HandleFunc("/api/audit/chain", a.handleAuditChain)
+	mux.HandleFunc("/api/credentials", a.handleCredentials)
 	mux.HandleFunc("/api/tenants", a.handleTenants)
 	mux.HandleFunc("/api/tenants/", a.handleTenantBackend)
 	mux.HandleFunc("/api/admin/tenants", a.handleAdminTenants)
@@ -2053,7 +2054,15 @@ func (a *App) executeMCPProxyAction(r *http.Request, principal auth.Principal, a
 	status := "not_configured"
 	executionError := ""
 	if action.ApprovalStatus == "approved" {
-		resp, code, err := a.forwardMCPRequest(r.Context(), raw, method, upstreamURL, a.gatewayMCPUpstreamToken())
+		// A call released by a person is still the agent's call, so it goes out
+		// under the same brokered credential it would have used had it been
+		// allowed outright. Sending it with the static token instead would mean
+		// approval quietly changed which identity the tool saw - and on an
+		// upstream that only accepts the brokered key, every approved call
+		// would fail while every allowed one worked.
+		credential, _ := a.brokerUpstreamAuth(
+			tenantOrDefault(action.Metadata["tenant"]), action.Metadata["tool"])
+		resp, code, err := a.forwardMCPRequest(r.Context(), raw, method, upstreamURL, credential)
 		if err != nil {
 			status = "failed"
 			executionError = err.Error()
