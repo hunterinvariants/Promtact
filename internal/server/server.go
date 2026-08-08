@@ -84,6 +84,10 @@ type App struct {
 	// The identity the demonstration presents, generated per process.
 	demoAgentID    string
 	demoAgentToken string
+	// Rate limiting for the audit record written on a rejected request, so an
+	// anonymous caller cannot append to the hash chain on demand.
+	authFailureMu  sync.Mutex
+	authFailures   map[string]*authFailureState
 	oidc           *oidcProvider
 	saml           *samlProvider
 	instanceName   string
@@ -2668,17 +2672,15 @@ func (a *App) withAuth(next http.Handler) http.Handler {
 		}
 		principal, ok := a.auth.Authenticate(r)
 		if !ok {
-			a.recordAudit(r, auth.Principal{Name: "anonymous"}, "auth.authenticate", "http_request", r.URL.Path, "denied", map[string]string{
-				"method": r.Method,
-			})
+			// Rate-limited: an anonymous caller must not be able to append to
+			// the audit chain on demand. See auth_failure_audit.go.
+			a.recordAuthFailure(r, auth.Principal{Name: "anonymous"}, "auth.authenticate")
 			writeError(w, http.StatusUnauthorized, errors.New("missing or invalid API token"))
 			return
 		}
 		required := auth.RequiredRoles(r.Method, r.URL.Path)
 		if !principal.HasAny(required...) {
-			a.recordAudit(r, principal, "auth.authorize", "http_request", r.URL.Path, "denied", map[string]string{
-				"method": r.Method,
-			})
+			a.recordAuthFailure(r, principal, "auth.authorize")
 			writeError(w, http.StatusForbidden, errors.New("insufficient role"))
 			return
 		}
