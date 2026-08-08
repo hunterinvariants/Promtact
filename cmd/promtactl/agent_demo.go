@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -32,15 +33,26 @@ func agentDemoCommand(args []string) error {
 	fs := flag.NewFlagSet("agent-demo", flag.ContinueOnError)
 	gatewayURL := fs.String("url", "http://127.0.0.1:8130", "Promtact base URL")
 	token := fs.String("token", "demo", "API token for the gateway")
+	// A token passed as an argument is visible in the process list to every
+	// local user, which is a poor thing for a security product to require.
+	tokenFile := fs.String("token-file", "", "read the token from a file instead")
 	toolsURL := fs.String("tools-url", "http://127.0.0.1:9200/", "the MCP tool server, for the unguarded run")
 	via := fs.String("via", "gateway", "gateway | direct — whether the agent's tools are gated")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
+	bearer := strings.TrimSpace(*token)
+	if path := strings.TrimSpace(*tokenFile); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("reading --token-file: %w", err)
+		}
+		bearer = strings.TrimSpace(string(data))
+	}
+
 	guarded := strings.EqualFold(strings.TrimSpace(*via), "gateway")
 	endpoint := strings.TrimRight(*gatewayURL, "/") + "/api/mcp/proxy"
-	bearer := *token
 	if !guarded {
 		endpoint = *toolsURL
 		bearer = ""

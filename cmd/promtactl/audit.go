@@ -200,13 +200,21 @@ func auditVerify(args []string) error {
 	if err != nil {
 		return err
 	}
+	// These field names are the endpoint's, checked against it rather than
+	// guessed. The first version invented them and printed "agrees at record 0,
+	// head " — an empty reassurance, which is worse than no output at all.
 	var witness struct {
-		Configured bool   `json:"configured"`
-		Endpoint   string `json:"endpoint"`
-		Index      int    `json:"index"`
-		Head       string `json:"head"`
-		Diverged   bool   `json:"diverged"`
-		Note       string `json:"note"`
+		Configured     bool   `json:"configured"`
+		LocalIndex     int    `json:"local_index"`
+		LocalHead      string `json:"local_head"`
+		LocalValid     bool   `json:"local_valid"`
+		WitnessedIndex int    `json:"witnessed_index"`
+		WitnessedHead  string `json:"witnessed_head"`
+		WitnessedAt    string `json:"witnessed_at"`
+		Agrees         bool   `json:"agrees"`
+		Diverged       bool   `json:"diverged"`
+		LastError      string `json:"last_error"`
+		Note           string `json:"note"`
 	}
 	if status < 300 {
 		_ = json.Unmarshal(body, &witness)
@@ -222,19 +230,49 @@ func auditVerify(args []string) error {
 		fmt.Println("             record and recompute every hash, and this check would")
 		fmt.Println("             still say 'intact'. Do not call it tamper-proof.")
 	case witness.Diverged:
-		fmt.Printf("Witness      %s\n", witness.Endpoint)
-		fmt.Println("             DIVERGED — the witness holds a head this server does not.")
-		fmt.Println("             Something was removed or rewritten here. Investigate before")
-		fmt.Println("             trusting anything else in this trail.")
-	default:
-		fmt.Printf("Witness      %s\n", witness.Endpoint)
-		fmt.Printf("             agrees at record %d, head %s\n", witness.Index, truncate(witness.Head, 24))
+		fmt.Println("Witness      DIVERGED")
+		fmt.Printf("             witness holds record %d, this server has %d\n",
+			witness.WitnessedIndex, witness.LocalIndex)
+		fmt.Println("             The witness has seen a chain this server can no longer")
+		fmt.Println("             produce. Something here was removed or rewritten.")
+	case witness.WitnessedHead == "":
+		// Configured but nothing published yet. Saying "agrees" here would be a
+		// reassurance about a comparison that has not happened.
+		fmt.Println("Witness      configured, nothing published yet")
+		fmt.Println("             Until a head is published there is nothing to compare")
+		fmt.Println("             against, so this says nothing about tampering either way.")
+	case witness.Agrees:
+		fmt.Printf("Witness      agrees at record %d\n", witness.WitnessedIndex)
+		fmt.Printf("             head %s\n", truncate(witness.WitnessedHead, 32))
+		if witness.WitnessedAt != "" {
+			fmt.Printf("             published %s\n", witness.WitnessedAt)
+		}
 		fmt.Println("             The witness refuses a chain that has been shortened or")
 		fmt.Println("             rewritten, so an operator cannot quietly edit this record")
 		fmt.Println("             even with full access to this server and its database.")
+	default:
+		fmt.Printf("Witness      configured, holding record %d — this server has %d\n",
+			witness.WitnessedIndex, witness.LocalIndex)
+		fmt.Println("             Behind rather than diverged: the witness has not been")
+		fmt.Println("             brought up to date with the newest records.")
+	}
+	if strings.TrimSpace(witness.LastError) != "" {
+		fmt.Printf("\n             last error: %s\n", witness.LastError)
 	}
 	if strings.TrimSpace(witness.Note) != "" {
 		fmt.Printf("\n             %s\n", witness.Note)
+	}
+
+	if !chain.Valid {
+		// A broken chain has two very different causes and the difference
+		// decides what to do next, so the command must not leave the reader to
+		// guess which one they have.
+		fmt.Println()
+		fmt.Println("The chain does not verify. Before treating it as tampering, check")
+		fmt.Println("whether records were removed by retention: a hash chain and a")
+		fmt.Println("deletion policy are in direct conflict, and pruning the oldest")
+		fmt.Println("records leaves the remainder unable to link back to a start.")
+		fmt.Println("Compare the lowest chain_index still present against 1.")
 	}
 	return nil
 }
