@@ -38,6 +38,11 @@ func agentDemoCommand(args []string) error {
 	tokenFile := fs.String("token-file", "", "read the token from a file instead")
 	toolsURL := fs.String("tools-url", "http://127.0.0.1:9200/", "the MCP tool server, for the unguarded run")
 	via := fs.String("via", "gateway", "gateway | direct — whether the agent's tools are gated")
+	// A deployment that registers agent identities holds every call from an
+	// agent that cannot name itself, however ordinary the tool. That is correct
+	// behaviour, and without these flags the demonstration cannot get past it.
+	agentID := fs.String("agent-id", "", "registered agent identity, where the policy requires one")
+	agentToken := fs.String("agent-token", "", "secret proving that identity")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -76,6 +81,8 @@ func agentDemoCommand(args []string) error {
 		endpoint: endpoint,
 		token:    bearer,
 		session:  fmt.Sprintf("agent-demo-%d", time.Now().UnixNano()),
+		agentID:  strings.TrimSpace(*agentID),
+		agentKey: strings.TrimSpace(*agentToken),
 		client:   &http.Client{Timeout: 30 * time.Second},
 	}
 	return agent.run()
@@ -85,12 +92,20 @@ type credulousAgent struct {
 	endpoint string
 	token    string
 	session  string
+	agentID  string
+	agentKey string
 	client   *http.Client
 }
 
 func (a *credulousAgent) call(tool string, arguments map[string]any) (string, string) {
-	response, err := postJSONWithHeaders(a.client, a.endpoint, a.token,
-		map[string]string{"Mcp-Session-Id": a.session},
+	headers := map[string]string{"Mcp-Session-Id": a.session}
+	if a.agentID != "" {
+		headers["X-Promtact-Agent-Id"] = a.agentID
+	}
+	if a.agentKey != "" {
+		headers["X-Promtact-Agent-Token"] = a.agentKey
+	}
+	response, err := postJSONWithHeaders(a.client, a.endpoint, a.token, headers,
 		map[string]any{
 			"jsonrpc": "2.0",
 			"id":      time.Now().UnixNano(),

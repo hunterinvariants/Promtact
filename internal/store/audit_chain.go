@@ -24,6 +24,10 @@ type AuditChainSnapshot struct {
 	Anchored      bool      `json:"anchored,omitempty"`
 	LastAuditID   string    `json:"last_audit_id,omitempty"`
 	LastTimestamp time.Time `json:"last_timestamp,omitempty"`
+	// TenantRecords is how many of the chain's records belong to the tenant
+	// asking. It is a count and nothing more: validity belongs to the chain,
+	// which is global.
+	TenantRecords int `json:"tenant_records,omitempty"`
 }
 
 // finalizeAuditChainSnapshot enforces coverage honesty: a chain that does not
@@ -112,52 +116,38 @@ func (s *Store) auditChainSnapshotLocked() AuditChainSnapshot {
 	return snap
 }
 
+// AuditChainForTenant reports the chain's integrity, plus how much of it
+// belongs to this tenant.
+//
+// It does not validate a filtered subset, and this is the whole point. The
+// chain is one sequence: every record links to the record before it across all
+// tenants. Take some records out and the rest cannot link to each other, so a
+// per-tenant validation reports a broken chain permanently, on a deployment
+// where nothing has been touched. That is exactly what it did — a console
+// telling a customer their audit trail was broken as its steady state, which
+// is worse than showing nothing, because the one signal that should mean
+// something now means nothing.
+//
+// Integrity is a property of the whole chain. A tenant gets that answer, plus
+// a count of its own records.
 func (s *Store) AuditChainForTenant(tenant string) AuditChainSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return finalizeAuditChainSnapshot(s.auditChainSnapshotForTenantLocked(tenant))
+
+	snap := finalizeAuditChainSnapshot(s.auditChainSnapshotLocked())
+	snap.TenantRecords = s.countTenantAuditsLocked(tenant)
+	return snap
 }
 
-func (s *Store) auditChainSnapshotForTenantLocked(tenant string) AuditChainSnapshot {
+func (s *Store) countTenantAuditsLocked(tenant string) int {
 	tenant = tenantOrDefault(tenant)
-	filtered := make([]domain.AuditEvent, 0, len(s.audits))
+	count := 0
 	for _, audit := range s.audits {
 		if sameTenant(audit.Tenant, tenant) {
-			filtered = append(filtered, audit)
+			count++
 		}
 	}
-	snap := AuditChainSnapshot{
-		Total:  len(filtered),
-		Linked: 0,
-		Head:   "",
-		Valid:  true,
-	}
-	previous := ""
-	for _, audit := range filtered {
-		if strings.TrimSpace(audit.Hash) == "" {
-			continue
-		}
-		snap.Linked++
-		if audit.PrevHash != previous {
-			snap.Valid = false
-		}
-		if audit.Hash != auditEventHash(audit, audit.PrevHash) {
-			snap.Valid = false
-		}
-		previous = audit.Hash
-		snap.Head = audit.Hash
-		snap.LastAuditID = audit.ID
-		snap.LastTimestamp = audit.Timestamp
-	}
-	if snap.Head == "" {
-		snap.Valid = snap.Total == 0
-	}
-	snap.Anchor = auditChainAnchorValue(snap.Head, snap.Linked, snap.Valid)
-	snap.Anchored = snap.Anchor != ""
-	if snap.Total > 0 {
-		snap.Valid = snap.Valid && snap.Anchored
-	}
-	return snap
+	return count
 }
 
 func auditChainAnchorKey() []byte {

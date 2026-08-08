@@ -260,6 +260,17 @@ func (a *App) identifyMCPSession(r *http.Request, principal auth.Principal, tool
 			toolCall.AssetID = "mcp:" + name
 		}
 	}
+
+	// A registered agent identity, where the caller has one. MCP has no field
+	// for this, so it travels in headers — and without a way to present it, a
+	// deployment that registers identities holds every MCP call it ever
+	// receives, which is correct policy reached by an unusable route.
+	if id := strings.TrimSpace(r.Header.Get("X-Promtact-Agent-Id")); id != "" {
+		toolCall.AgentID = id
+	}
+	if secret := strings.TrimSpace(r.Header.Get("X-Promtact-Agent-Token")); secret != "" {
+		toolCall.AgentToken = secret
+	}
 }
 
 // mcpResultText pulls the human-readable content out of a JSON-RPC response so
