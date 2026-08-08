@@ -61,6 +61,9 @@ export const api = {
   actions: () => request<any[]>("/api/responses"),
   auditChain: () => request<any>("/api/audit/chain"),
   auditWitness: () => request<any>("/api/audit/witness"),
+  policy: () => request<any>("/api/policy"),
+  updatePolicy: (body: { approved_tools: string[]; approved_egress_hosts: string[] }) =>
+    request<any>("/api/policy", { method: "PUT", body: JSON.stringify(body) }),
   demoDocuments: () => request<any[]>("/api/demo/documents"),
   demoOutbox: () => request<any[]>("/api/demo/outbox"),
   audit: () => request<any[]>("/api/audit"),

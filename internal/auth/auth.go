@@ -444,6 +444,15 @@ func RequiredRoles(method string, path string) []string {
 	if path == "/api/events" || path == "/api/demo" {
 		return []string{RoleIngestor, RoleAnalyst, RoleOperator}
 	}
+	if path == "/api/policy" {
+		// Reading the policy is part of understanding what the gateway will do,
+		// so an analyst may. Changing it decides what an agent is allowed to
+		// call, which is an operator's decision and nobody else's.
+		if method == http.MethodPut {
+			return []string{RoleOperator, RoleAdmin}
+		}
+		return []string{RoleViewer, RoleAnalyst, RoleOperator, RoleAdmin}
+	}
 	if strings.HasPrefix(path, "/api/demo/") {
 		// The demonstration endpoints exist only on a deployment started for
 		// one, and running them changes nothing a customer owns. Without this

@@ -9,6 +9,7 @@ import Gateway from "./pages/Gateway";
 import Events from "./pages/Events";
 import Health from "./pages/Health";
 import Overview from "./pages/Overview";
+import Policy from "./pages/Policy";
 import Settings from "./pages/Settings";
 import Tenants from "./pages/Tenants";
 
@@ -17,6 +18,7 @@ type PageKey =
   | "overview"
   | "health"
   | "approvals"
+  | "policy"
   | "alerts"
   | "events"
   | "assets"
@@ -47,6 +49,13 @@ const PAGES: { key: PageKey; label: string; icon: string; adminOnly?: boolean; d
     demoOnly: true,
     title: "Demonstration",
     subtitle: "The same agent, with and without the gateway",
+  },
+  {
+    key: "policy",
+    label: "Policy",
+    icon: "☷",
+    title: "Policy",
+    subtitle: "What agents may call, and where they may reach",
   },
   {
     key: "health",
@@ -241,6 +250,8 @@ export default function App() {
         return <Health onNavigate={setPage} />;
       case "approvals":
         return <Approvals />;
+      case "policy":
+        return <Policy />;
       case "demonstration":
         return <Demonstration onNavigate={setPage} />;
       case "alerts":

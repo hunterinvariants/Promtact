@@ -446,6 +446,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/responses/approve", a.handleResponseApproval)
 	mux.HandleFunc("/api/responses", a.handleResponses)
 	mux.HandleFunc("/api/policies", a.handlePolicies)
+	mux.HandleFunc("/api/policy", a.handlePolicyDocument)
 	mux.HandleFunc("/api/demo", a.handleDemo)
 	mux.HandleFunc("/api/demo/agent-run", a.handleDemoAgentRun)
 	mux.HandleFunc("/api/demo/documents", a.handleDemoDocuments)
