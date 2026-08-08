@@ -70,9 +70,9 @@ Breaking the chain does not break a signature: the old signatures stay valid on
 the records that remain. What signing prevents is producing a *replacement* —
 forging a record needs the key, and the key cannot leave the KMS. So the attack
 degrades from "rewrite history convincingly" to "delete and leave a hole", and a
-hole is what the witness receipts turn into evidence. Rewriting history stops being "run an UPDATE" and becomes "obtain the
-signing key", which is a different class of problem with its own audit trail on
-the KMS side.
+hole is what the witness receipts turn into evidence. Producing a believable
+history stops being "run an UPDATE" and becomes "obtain the signing key", which
+is a different class of problem with its own audit trail on the KMS side.
 
 Concretely: AWS KMS, GCP KMS or Azure Key Vault with an asymmetric key and
 `Sign` permission only, or a local TPM 2.0 for on-premises. The verification key
