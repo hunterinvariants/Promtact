@@ -1314,3 +1314,55 @@ tr.is-clickable:hover td { cursor: pointer; }
   background: rgba(194, 80, 80, 0.12);
   color: #eda3a3;
 }
+
+/* ---------- Definition lists ---------- */
+
+/* Label left, value right, everywhere rather than in three named places.
+   Three components had grid styling scoped to their own wrapper, so every dl
+   added since fell back to the browser default — dt on one line, dd indented
+   under it — and read as a staircase. */
+.panel dl,
+.modal-body dl {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.panel dl > div,
+.modal-body dl > div {
+  display: grid;
+  grid-template-columns: minmax(9rem, 12rem) 1fr;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 0.86rem;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel dl > div:last-child,
+.modal-body dl > div:last-child {
+  border-bottom: none;
+}
+
+.panel dl dt,
+.modal-body dl dt {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.panel dl dd,
+.modal-body dl dd {
+  margin: 0;
+  /* Hashes and long identifiers must wrap rather than push the panel wide. */
+  overflow-wrap: anywhere;
+}
+
+/* A one-line row on a narrow screen is easier to read stacked than squeezed
+   into two columns of four characters each. */
+@media (max-width: 700px) {
+  .panel dl > div,
+  .modal-body dl > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
