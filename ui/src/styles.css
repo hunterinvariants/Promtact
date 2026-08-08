@@ -839,9 +839,20 @@ tbody tr:hover {
 
 .health-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 10px;
+  /* Wide enough that a component name and its one-line summary do not wrap
+     mid-phrase. At 260px they did, and a card reading "Deciding and /
+     persisting" over two lines looks like a layout accident rather than a
+     status. */
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
   margin-bottom: 14px;
+  align-items: stretch;
+}
+
+/* Equal heights. Cards of different heights in one row read as unfinished,
+   whatever the content. */
+.health-grid > * {
+  height: 100%;
 }
 
 .health-card {

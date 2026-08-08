@@ -83,7 +83,16 @@ export default function Report() {
   if (error) return <div className="callout">⚠ {error}</div>;
   if (!report) return <Empty>{busy ? "Building the report." : "No report."}</Empty>;
 
-  const { counts, integrity } = report;
+  // Belt as well as braces. The server now sends empty lists, but a page that
+  // renders a report must not be one bad field away from a white screen: the
+  // reader has no way to tell a crash from an outage.
+  const counts = report.counts || { decided: 0, allowed: 0, held: 0, stopped: 0 };
+  const integrity = report.integrity || ({} as Report["integrity"]);
+  const stoppedFor = report.stopped_for || [];
+  const heldFor = report.held_for || [];
+  const approvals = report.approvals || [];
+  const policyChanges = report.policy_changes || [];
+  const notCovered = report.not_covered || [];
 
   return (
     <>
@@ -154,11 +163,11 @@ export default function Report() {
         )}
       </Panel>
 
-      {report.stopped_for.length > 0 ? (
+      {stoppedFor.length > 0 ? (
         <Panel title="What was stopped, and why" bodyless>
           <table>
             <tbody>
-              {report.stopped_for.map((row) => (
+              {stoppedFor.map((row) => (
                 <tr key={row.reason}>
                   <td className="num" style={{ width: 70 }}>{row.count}</td>
                   <td>{row.reason}</td>
@@ -169,11 +178,11 @@ export default function Report() {
         </Panel>
       ) : null}
 
-      {report.held_for.length > 0 ? (
+      {heldFor.length > 0 ? (
         <Panel title="What needed a person, and why" bodyless>
           <table>
             <tbody>
-              {report.held_for.map((row) => (
+              {heldFor.map((row) => (
                 <tr key={row.reason}>
                   <td className="num" style={{ width: 70 }}>{row.count}</td>
                   <td>{row.reason}</td>
@@ -184,8 +193,8 @@ export default function Report() {
         </Panel>
       ) : null}
 
-      <Panel title="Who approved what" note={`${report.approvals.length}`} bodyless>
-        {report.approvals.length === 0 ? (
+      <Panel title="Who approved what" note={`${approvals.length}`} bodyless>
+        {approvals.length === 0 ? (
           <Empty>Nothing was approved in this period.</Empty>
         ) : (
           <table>
@@ -197,7 +206,7 @@ export default function Report() {
               </tr>
             </thead>
             <tbody>
-              {report.approvals.map((approval, index) => (
+              {approvals.map((approval, index) => (
                 <tr key={index}>
                   <td className="mono">{approval.tool || "—"}</td>
                   <td>{approval.approved_by}</td>
@@ -209,8 +218,8 @@ export default function Report() {
         )}
       </Panel>
 
-      <Panel title="Changes to the policy" note={`${report.policy_changes.length}`} bodyless>
-        {report.policy_changes.length === 0 ? (
+      <Panel title="Changes to the policy" note={`${policyChanges.length}`} bodyless>
+        {policyChanges.length === 0 ? (
           <Empty>The policy was not changed in this period.</Empty>
         ) : (
           <table>
@@ -223,7 +232,7 @@ export default function Report() {
               </tr>
             </thead>
             <tbody>
-              {report.policy_changes.map((change, index) => (
+              {policyChanges.map((change, index) => (
                 <tr key={index}>
                   <td className="num panel-note">{new Date(change.at).toLocaleString()}</td>
                   <td>{change.by}</td>
@@ -271,7 +280,7 @@ export default function Report() {
             gets asked, and answering it first is worth more than being asked
             and appearing to have hidden it. */}
         <ul style={{ maxWidth: "78ch", paddingLeft: 18 }}>
-          {report.not_covered.map((item, index) => (
+          {notCovered.map((item, index) => (
             <li key={index} style={{ marginBottom: 6 }}>{item}</li>
           ))}
         </ul>

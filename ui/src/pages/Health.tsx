@@ -88,10 +88,16 @@ export default function Health({ onNavigate }: { onNavigate?: (page: any) => voi
         </div>
       </section>
 
+      {/* Components this account cannot see are left out rather than shown as
+          grey cards saying so. Three dead tiles beside the live ones read as a
+          broken deployment, and the reader has no way to tell "you lack the
+          role" from "this is not working". */}
       <div className="health-grid">
-        {components.map((component) => (
-          <HealthCard key={component.name} component={component} onNavigate={onNavigate} />
-        ))}
+        {components
+          .filter((component) => component.headline !== "Not visible to this account")
+          .map((component) => (
+            <HealthCard key={component.name} component={component} onNavigate={onNavigate} />
+          ))}
       </div>
 
       <p className="health-foot">

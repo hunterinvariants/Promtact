@@ -108,10 +108,19 @@ func (a *App) handleReport(w http.ResponseWriter, r *http.Request) {
 	witness := a.witnessSnapshot(r.Context())
 
 	document := report{
-		Tenant:      tenantOrDefault(tenant),
-		GeneratedAt: time.Now().UTC(),
-		GeneratedBy: principal.Name,
-		Period:      reportPeriod{From: from, To: to, Days: int(to.Sub(from).Hours() / 24)},
+		// Initialised rather than left nil. An omitted slice encodes as null,
+		// and a browser calling .length on null throws — which took the whole
+		// report page white the first time it was opened on a deployment with
+		// no approvals in the period. An empty list is the honest encoding of
+		// "none" anyway.
+		Approvals:     []reportApproval{},
+		PolicyChanges: []reportPolicyChange{},
+		StoppedFor:    []reportReason{},
+		HeldFor:       []reportReason{},
+		Tenant:        tenantOrDefault(tenant),
+		GeneratedAt:   time.Now().UTC(),
+		GeneratedBy:   principal.Name,
+		Period:        reportPeriod{From: from, To: to, Days: int(to.Sub(from).Hours() / 24)},
 		NotCovered: []string{
 			"The prompt an agent was given, the conversation around it, and the model's reasoning. This gateway sits between an agent and its tools; it records what a tool was asked to do and what was decided.",
 			"Anything an agent can reach without passing through the gateway. Where an agent has other routes to the same data, those calls are not here.",
