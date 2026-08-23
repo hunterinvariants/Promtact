@@ -44,6 +44,30 @@ jobs:
       - run: go vet ./...
 
   # Everything below is either Linux-only or too slow to repeat three times.
+
+  rust-adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Select pinned Rust toolchain
+        working-directory: examples/rust-tokenring-adapter
+        run: rustup show active-toolchain
+      - name: Verify Rust reference adapter
+        working-directory: examples/rust-tokenring-adapter
+        run: |
+          cargo fmt --all --check
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo build --locked
+      - name: Run Go-to-Rust conformance
+        env:
+          PROMTACT_RUST_ADAPTER: ${{ github.workspace }}/examples/rust-tokenring-adapter/target/debug/promtact-rust-tokenring-adapter
+        run: go test ./internal/adapterhost -run '^TestRustProcessAdapter' -count=1
+
   linux:
     runs-on: ubuntu-latest
     steps:
