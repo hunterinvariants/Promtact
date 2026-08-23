@@ -25,10 +25,10 @@ func (f InvariantFunc) Name() string { return f.Label }
 
 func (f InvariantFunc) Check() error { return f.Fn() }
 
-// Violation reports a failed invariant together with everything needed to
-// reproduce it: the step it was detected at and the trace hash of the run up to
-// that point. Replaying the same seed and the same caller actions reaches the
-// same trace hash, so a violation localizes to an exact point in an exact run.
+// Violation reports a failed invariant at an exact point in a run.
+//
+// It records the invariant, step, and trace hash. Reproducing the run also
+// requires the caller to retain the seed and repeat the same caller actions.
 type Violation struct {
 	// Invariant is the name of the property that failed.
 	Invariant string

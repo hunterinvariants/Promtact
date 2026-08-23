@@ -52,7 +52,8 @@ func (c *cluster) Drain(id uint32, dst []myMessage) []myMessage {
 func (c *cluster) Route(m myMessage) (uint32, uint32) { return m.From, m.To }
 func (c *cluster) Digest(m myMessage) (uint8, uint64) { return m.Kind, m.Term }
 
-engine := dst.New[myMessage](dst.Config{Seed: 1, DropPermille: 50, MaxDelay: 5}, c, c)
+const seed int64 = 1
+engine := dst.New[myMessage](dst.Config{Seed: seed, DropPermille: 50, MaxDelay: 5}, c, c)
 engine.Run(10_000)
 ```
 
@@ -63,6 +64,17 @@ exercising the mechanism that makes it safe. Start there.
 `dst/raftcluster` is the other: it is what this repository's own Raft core
 looks like behind these interfaces, and it is verified to drive the core
 identically to the simulator that was qualified before the extraction.
+
+### Validate as a downstream module
+
+Before publishing an adapter, test it from a separate module pinned to a
+released Promtact version and without a local `replace` directive. Run the
+same seed twice, assert that every configured fault activates, and use a
+negative control to prove that each safety invariant can fail.
+
+Inspect `go list -m all` and `go list -deps`, then repeat the suite with
+fresh module and build caches. This validates the API downstream users
+receive; the temporary validation module does not need to be published.
 
 ### The determinism contract
 
@@ -97,13 +109,13 @@ engine.Watch(dst.InvariantFunc{
 if err := engine.RunChecked(10_000); err != nil {
     var v *dst.Violation
     errors.As(err, &v)
-    log.Fatalf("%s broke at step %d, trace %s", v.Invariant, v.Step, v.Trace)
+    log.Fatalf("seed %d: %s broke at step %d, trace %s", seed, v.Invariant, v.Step, v.Trace)
 }
 ```
 
-A `Violation` carries the property name, the step, and the trace hash, so a
-failure is a coordinate you can return to rather than a message you have to
-reproduce by guesswork.
+A `Violation` carries the property name, the step, and the trace hash. The
+runner must retain the seed and repeat the same caller actions; the trace is a
+coordinate within that run, not a complete replay recipe.
 
 `Step` and `Run` never evaluate invariants, so adding them to an existing loop
 changes nothing until you opt in.
