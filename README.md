@@ -148,6 +148,12 @@ The nested [token-ring consumer](examples/tokenring-consumer/README.md)
 tests the released downstream API from a separate Go module. Its dedicated
 CI job uses the pinned release without a local `replace` directive.
 
+The language-neutral [process adapter protocol v1](docs/PROCESS-ADAPTER-PROTOCOL.md)
+extends the deterministic engine across a subprocess boundary. The checked
+[Rust token-ring reference](examples/rust-tokenring-adapter/README.md)
+reproduces the Go campaign's exact trace. It is a reference adapter, not a
+general Rust SDK or native binding.
+
 Start your own from a working skeleton:
 
 ```bash
@@ -349,6 +355,8 @@ isolated netns -> XDP / TC / netem -> controlled kernel faults
 - `dst/raftcluster/`: the Raft adapter, and the equivalence campaigns;
 - `examples/paxos/`: a complete protocol that is not Raft;
 - `examples/tokenring-consumer/`: downstream API adoption against a pinned release;
+- `examples/rust-tokenring-adapter/`: checked Rust process-adapter reference;
+- `internal/adapterproto/`, `internal/adapterhost/`: process protocol and Go host;
 - `raft/`: consensus state machine, persistence boundary, quorum logic;
 - `sim/`: the qualified simulator, retained as the equivalence reference;
 - `storage/wal/`: portable WAL format and recovery;
@@ -365,6 +373,7 @@ isolated netns -> XDP / TC / netem -> controlled kernel faults
 
 - [docs/DEVELOPERS.md](docs/DEVELOPERS.md), driving your own protocol, properties, faults, and storage;
 - [docs/API.md](docs/API.md), what is contractual, and what versioning will mean;
+- [docs/PROCESS-ADAPTER-PROTOCOL.md](docs/PROCESS-ADAPTER-PROTOCOL.md), the language-neutral subprocess wire contract;
 - [CONTRIBUTING.md](CONTRIBUTING.md), the evidence bar a change has to clear;
 - [SPEC.md](SPEC.md), [STATUS.md](STATUS.md), [ROADMAP.md](ROADMAP.md), [EVIDENCE.md](EVIDENCE.md).
 

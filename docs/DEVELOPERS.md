@@ -80,6 +80,18 @@ control to prove that each safety invariant can fail. Inspect
 `go list -m all` and `go list -deps`, then repeat the suite with fresh
 module and build caches.
 
+### Validate across a process boundary
+
+For a non-Go protocol, follow
+[process adapter protocol v1](PROCESS-ADAPTER-PROTOCOL.md). The checked
+[Rust token-ring adapter](../examples/rust-tokenring-adapter/README.md)
+is the reference implementation: the Go host retains scheduling, virtual
+time, fault injection, and trace hashing while Rust owns protocol state.
+
+The cross-language test reproduces the exact Go reference trace and includes
+a deliberate invariant violation. The Go host remains internal, and this
+reference does not claim a general Rust SDK or native language binding.
+
 ### The determinism contract
 
 Every method above must be deterministic. The usual way to break this is
