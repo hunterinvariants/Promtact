@@ -21,12 +21,10 @@
 - WAL adapter over aligned io_uring blocks;
 - XDP/TC programs and namespace-safe netem controller;
 - live Sentinel verifier, fault-injection, and cleanup tests;
-- dedicated GCP Local SSD NVMe qualification with recorded kernel, device,
-  SMART state, and latency distribution.
+- dedicated raw NVMe qualification with recorded kernel, device, and
+  latency distribution.
 
-Evidence: benchmarks/sentinel-block-device-2026-07-28.md,
-benchmarks/sentinel-raw-block-2026-07-28.md, and
-benchmarks/gcp-local-nvme-2026-07-28.md.
+Evidence: `benchmarks/sentinel-2026-08-17.md`.
 
 Batching, group commit, and queue-depth tuning remain performance improvements,
 not missing Phase 3 correctness gates.
@@ -42,7 +40,7 @@ not missing Phase 3 correctness gates.
 - deterministic compaction, membership, crash, and restart campaigns;
 - Sentinel race and io_uring acceptance gates.
 
-Evidence: `benchmarks/sentinel-phase4-2026-07-28.md`.
+Evidence: `benchmarks/sentinel-2026-08-17.md`.
 
 ## Phase 5 - distributed product surface: complete
 
@@ -52,17 +50,16 @@ Evidence: `benchmarks/sentinel-phase4-2026-07-28.md`.
 4. Prometheus metrics, health endpoint, graceful shutdown, checksummed offline backup and restore;
 5. Jepsen register workload with Knossos linearizability checking and live process/network faults.
 
-Sentinel evidence: `benchmarks/sentinel-phase5-2026-07-28.md`.
+Sentinel evidence: `benchmarks/sentinel-2026-08-17.md`.
 
 ## Phase 6 - formal and production qualification: complete
 
 1. complete TLA+ protocol model and bounded CI model checking;
 2. disk-full, I/O-error, process-kill, and corruption campaigns;
-3. dedicated GCP Local SSD NVMe qualification: complete for the recorded configuration;
+3. dedicated raw NVMe qualification: complete for the recorded configuration;
 4. documented operating envelope and release checklist.
 
-Evidence: `benchmarks/sentinel-phase6-2026-07-28.md` and
-`benchmarks/gcp-local-nvme-2026-07-28.md`.
+Evidence: `benchmarks/sentinel-2026-08-17.md`.
 
 No phase is considered complete from code presence alone. It requires an
 executable test or recorded external evidence.
