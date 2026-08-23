@@ -144,6 +144,10 @@ The second command is the point of the project: a complete protocol that is
 own invariants and partition campaigns. See
 [examples/paxos](examples/paxos/README.md).
 
+The nested [token-ring consumer](examples/tokenring-consumer/README.md)
+tests the released downstream API from a separate Go module. Its dedicated
+CI job uses the pinned release without a local `replace` directive.
+
 Start your own from a working skeleton:
 
 ```bash
@@ -344,6 +348,7 @@ isolated netns -> XDP / TC / netem -> controlled kernel faults
 - `dst/scenario/`: the declarative run format;
 - `dst/raftcluster/`: the Raft adapter, and the equivalence campaigns;
 - `examples/paxos/`: a complete protocol that is not Raft;
+- `examples/tokenring-consumer/`: downstream API adoption against a pinned release;
 - `raft/`: consensus state machine, persistence boundary, quorum logic;
 - `sim/`: the qualified simulator, retained as the equivalence reference;
 - `storage/wal/`: portable WAL format and recovery;

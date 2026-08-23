@@ -29,6 +29,20 @@ jobs:
       - run: go test ./... -count=1
       - run: go vet ./...
 
+  downstream:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/tokenring-consumer
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: examples/tokenring-consumer/go.mod
+          cache: false
+      - run: go test ./... -count=1
+      - run: go vet ./...
+
   # Everything below is either Linux-only or too slow to repeat three times.
   linux:
     runs-on: ubuntu-latest

@@ -67,14 +67,18 @@ identically to the simulator that was qualified before the extraction.
 
 ### Validate as a downstream module
 
-Before publishing an adapter, test it from a separate module pinned to a
-released Promtact version and without a local `replace` directive. Run the
-same seed twice, assert that every configured fault activates, and use a
-negative control to prove that each safety invariant can fail.
+The checked-in
+[token-ring consumer](../examples/tokenring-consumer/README.md) is the
+reference downstream validation. It is a separate Go module pinned to
+Promtact v0.3.6 and has no local `replace` directive. Its dedicated CI job
+therefore checks the API that downstream users receive rather than the
+current repository checkout.
 
-Inspect `go list -m all` and `go list -deps`, then repeat the suite with
-fresh module and build caches. This validates the API downstream users
-receive; the temporary validation module does not need to be published.
+When validating another adapter, follow the same pattern: run the same seed
+twice, assert that every configured fault activates, and use a negative
+control to prove that each safety invariant can fail. Inspect
+`go list -m all` and `go list -deps`, then repeat the suite with fresh
+module and build caches.
 
 ### The determinism contract
 
