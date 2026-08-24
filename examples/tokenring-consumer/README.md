@@ -20,7 +20,8 @@ rather than the Promtact source in the surrounding repository.
 
 ## Run
 
-The module requires Go 1.25 or newer.
+The module declares Go 1.25.0 as its minimum version and pins `go1.25.13`
+as the qualified toolchain.
 
     go test ./...
     go vet ./...

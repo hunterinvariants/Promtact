@@ -81,6 +81,12 @@ published. Name the version to get exactly it:
 go install github.com/hunterinvariants/promtact/cmd/promtact@v0.3.6
 ```
 
+Installing a command with `go install package@version` runs outside the
+dependency module, so the invoking Go command may select a newer compatible
+compiler. It does not reproduce the compiler used for a release. The v0.3.6
+artifacts were built with Go 1.25.13. Use a release artifact, or build a
+checkout that honors `toolchain go1.25.13`, when compiler identity matters.
+
 `go install` writes the binary to `$(go env GOPATH)/bin`, which is not on
 `PATH` on a fresh machine:
 

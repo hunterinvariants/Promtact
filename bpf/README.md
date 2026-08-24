@@ -24,7 +24,7 @@ On Ubuntu, install the Linux BPF build and control tools:
 
     sudo apt-get update
     sudo apt-get install -y \
-      clang llvm libbpf-dev linux-libc-dev gcc bpftool iproute2 util-linux
+      clang llvm libbpf-dev linux-libc-dev gcc linux-tools-common iproute2 util-linux
 
 Compile the checked-in program:
 
