@@ -123,6 +123,7 @@ func New(plan Plan, runner Runner) (*Controller, error) {
 type commandStep struct {
 	arguments []string
 	completed func()
+	claim     string
 }
 
 func (c *Controller) Apply(ctx context.Context) error {
@@ -142,6 +143,7 @@ func (c *Controller) Apply(ctx context.Context) error {
 	steps := []commandStep{
 		{
 			arguments: []string{"mkdir", "--", pins.root},
+			claim:     fmt.Sprintf("pin root %q", pins.root),
 			completed: func() {
 				c.ownsPinRoot = true
 			},
@@ -163,6 +165,7 @@ func (c *Controller) Apply(ctx context.Context) error {
 		},
 		{
 			arguments: []string{"ip", "netns", "add", p.Namespace},
+			claim:     fmt.Sprintf("namespace %q", p.Namespace),
 			completed: func() {
 				c.ownsNamespace = true
 			},
@@ -170,6 +173,7 @@ func (c *Controller) Apply(ctx context.Context) error {
 		{
 			arguments: []string{"ip", "link", "add", p.HostVeth,
 				"type", "veth", "peer", "name", p.PeerVeth},
+			claim: fmt.Sprintf("veth pair %q and %q", p.HostVeth, p.PeerVeth),
 			completed: func() {
 				c.ownsHostVeth = true
 			},
@@ -220,9 +224,13 @@ func (c *Controller) Apply(ctx context.Context) error {
 
 	for _, step := range steps {
 		if err := c.runner.Run(ctx, step.arguments[0], step.arguments[1:]...); err != nil {
+			failure := err
+			if step.claim != "" {
+				failure = fmt.Errorf("chaos: cannot claim %s; refusing to use or remove it without ownership: %w", step.claim, err)
+			}
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			return errors.Join(err, c.cleanup(cleanupCtx))
+			return errors.Join(failure, c.cleanup(cleanupCtx))
 		}
 		if step.completed != nil {
 			step.completed()
