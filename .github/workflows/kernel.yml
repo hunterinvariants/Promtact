@@ -6,6 +6,7 @@ on:
       - "bpf/**"
       - "chaos/**"
       - "cmd/promtact-chaos/**"
+      - "internal/cli/chaos_linux*"
       - "storage/uring/**"
       - ".github/workflows/kernel.yml"
   pull_request:
@@ -30,7 +31,7 @@ jobs:
           cache: false
       - run: sudo apt-get update
       - run: sudo apt-get install -y clang llvm libbpf-dev linux-libc-dev
-      - run: go test ./chaos ./storage/uring
-      - run: go build ./cmd/promtact-chaos
+      - run: go test ./chaos ./internal/cli ./storage/uring
+      - run: go build ./cmd/promtact-chaos ./cmd/promtact
       - run: clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I/usr/include/$(gcc -dumpmachine) -c bpf/promtact_chaos.bpf.c -o /tmp/promtact_chaos.bpf.o
 

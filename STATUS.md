@@ -21,8 +21,8 @@ Updated: 2026-08-17
 | io_uring | registered file and buffer, `WRITE_FIXED`, CQE, `FSYNC` | Sentinel integration pass |
 | Direct I/O | aligned 4096-byte `O_DIRECT` blocks | Sentinel integration pass |
 | WAL + io_uring | write, close, reopen, validate, replay | `storage/uringwal` integration pass |
-| Kernel chaos | XDP and TC verifier/JIT | Sentinel verifier pass |
-| Kernel chaos | isolated delay/drop and cleanup | Sentinel live test |
+| Kernel chaos policy | shared XDP/TC map, input bounds, ownership, and cleanup | unit and real-kernel pass |
+| Kernel chaos effects | XDP drop/partition, TC drop/corruption, and `netem` delay/loss | Sentinel live qualification |
 | Phase 3 | Linux io_uring, direct NVMe I/O, XDP/TC chaos, safe cleanup | complete; Sentinel evidence |
 | Snapshot format | checksummed encode/decode and torn-image rejection | unit tests |
 | Membership | old/new joint-majority calculation | unit tests |

@@ -257,7 +257,7 @@ a durable record has no position and must carry one. They are converted at the
   delay bound the two cost the same; the heap matters at wide topologies with
   high delay bounds, where the scan is seven times slower.
 - **Kernel-level fault injection is separate.** `chaos` and `bpf/` drive real
-  XDP/TC programs and keep hard safety guards: a dedicated `promtact-*`
-  namespace, validated CIDRs, and bounded delay and loss. Those guards are not
-  extension points, and the deterministic `Injector` above has nothing to do
-  with them.
+  XDP and TC programs through one atomically updated policy map. Independent
+  controls cover XDP ingress drop and IPv4 partitions, TC egress drop and
+  corruption, and `netem` delay and loss. Dedicated `promtact-*` resources
+  and explicit ownership keep this path isolated from management interfaces.

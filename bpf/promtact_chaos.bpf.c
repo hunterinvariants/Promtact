@@ -7,8 +7,9 @@
 #include <bpf/bpf_helpers.h>
 
 struct fault_policy {
-    __u32 drop_per_10000;
-    __u32 corrupt_per_10000;
+    __u32 xdp_drop_per_10000;
+    __u32 tc_drop_per_10000;
+    __u32 tc_corrupt_per_10000;
     __u32 blocked_src;
     __u32 blocked_dst;
 };
@@ -41,23 +42,23 @@ int promtact_xdp(struct xdp_md *ctx) {
     if ((p->blocked_src && ip->saddr == p->blocked_src) ||
         (p->blocked_dst && ip->daddr == p->blocked_dst))
         return XDP_DROP;
-    if (p->drop_per_10000 &&
-        bpf_get_prandom_u32() % 10000 < p->drop_per_10000)
+    if (p->xdp_drop_per_10000 &&
+        bpf_get_prandom_u32() % 10000 < p->xdp_drop_per_10000)
         return XDP_DROP;
     return XDP_PASS;
 }
 
 SEC("classifier")
-int promtact_tc_egress(struct __sk_buff *skb) {
+int promtact_tc(struct __sk_buff *skb) {
     __u32 zero = 0;
     struct fault_policy *p = bpf_map_lookup_elem(&policy, &zero);
     if (!p)
         return TC_ACT_OK;
-    if (p->drop_per_10000 &&
-        bpf_get_prandom_u32() % 10000 < p->drop_per_10000)
+    if (p->tc_drop_per_10000 &&
+        bpf_get_prandom_u32() % 10000 < p->tc_drop_per_10000)
         return TC_ACT_SHOT;
-    if (p->corrupt_per_10000 &&
-        bpf_get_prandom_u32() % 10000 < p->corrupt_per_10000) {
+    if (p->tc_corrupt_per_10000 &&
+        bpf_get_prandom_u32() % 10000 < p->tc_corrupt_per_10000) {
         __u8 value = 0x01;
         bpf_skb_store_bytes(skb, ETH_HLEN + sizeof(struct iphdr), &value,
                             sizeof(value), BPF_F_RECOMPUTE_CSUM);

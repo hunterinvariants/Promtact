@@ -31,7 +31,7 @@ func TestRejectsHostInterfaceNames(t *testing.T) {
 }
 
 func TestFailureAlwaysRunsNamespaceCleanup(t *testing.T) {
-	runner := &fakeRunner{failAt: 4}
+	runner := &fakeRunner{failAt: 8}
 	controller, err := New(Plan{
 		Namespace: "promtact-test", HostVeth: "promtact-host",
 		PeerVeth: "promtact-peer", BPFObject: "chaos.o",

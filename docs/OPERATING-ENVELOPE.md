@@ -10,8 +10,9 @@ Promtact is qualified only within the following recorded envelope.
   configuration, and failed snapshot persistence cause fail-stop behavior.
 - Deployments require an odd voting set of at least three independent nodes.
 - Client request IDs must be stable across retries; server queues are bounded.
-- XDP/TC chaos tooling may only target dedicated `promtact-*` namespaces and
-  interfaces. Management interfaces are outside the supported envelope.
+- XDP/TC chaos tooling may only use dedicated `promtact-*` namespaces and
+  interfaces with one shared policy map. Explicit ownership protects existing
+  resources, and management interfaces remain outside the supported envelope.
 - Backup is offline and checksummed. Restore must target an empty data
   directory and be validated before the node rejoins a cluster.
 

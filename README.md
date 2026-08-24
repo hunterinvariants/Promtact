@@ -218,8 +218,8 @@ A run can be declared as a file rather than written into a test:
 - registered-file and registered-buffer `io_uring` data path using `WRITE_FIXED`;
 - CQE identity, error, and short-write validation followed by a separate `FSYNC`;
 - checksummed WAL records stored in aligned 4096-byte `O_DIRECT` blocks;
-- XDP ingress drop/partition and TC egress drop/corruption programs;
-- namespace-safe eBPF/netem controller with mandatory cleanup;
+- XDP ingress drop/partition and TC egress drop/corruption through one shared policy map;
+- namespace-safe eBPF/netem control with explicit ownership and cleanup;
 - checksummed snapshot image format and joint-quorum calculation primitive;
 - parallel seed sweeper, race tests, fuzz target, benchmarks, and CI;
 - bounded TLA+ model covering election, replication, commit, snapshots, membership, and crash recovery;
@@ -316,6 +316,11 @@ registered `io_uring` with `O_DIRECT` and `WRITE_FIXED`:
 
 These describe this machine's devices, not hardware in general. Full evidence
 and commands are in [benchmarks/sentinel-2026-08-17.md](benchmarks/sentinel-2026-08-17.md).
+
+The current kernel-chaos qualification on Ubuntu 24.04.4 with kernel 6.8.0-138
+measured XDP, TC, IPv4 partition, `netem` delay, `netem` loss, ownership
+collisions, and complete cleanup behavior. See
+[benchmarks/sentinel-kernel-chaos-2026-08-24.md](benchmarks/sentinel-kernel-chaos-2026-08-24.md).
 
 Linux capability and integration gates:
 
