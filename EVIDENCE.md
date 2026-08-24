@@ -14,6 +14,7 @@ or a finite verification bound.
 | Linearizability | Jepsen/Knossos register history reports `valid? true` during process and network faults, on the qualification host and in CI | [Sentinel qualification run](benchmarks/sentinel-2026-08-17.md), [jepsen workflow](.github/workflows/jepsen.yml) |
 | Storage faults | ENOSPC, append EIO, sync EIO, torn writes, bit rot, misdirected writes, phantom reads, and fail-stop ACK rules pass | [Sentinel qualification run](benchmarks/sentinel-2026-08-17.md) |
 | Kernel paths | registered file/buffer, `O_DIRECT`, `WRITE_FIXED`, CQE validation, `FSYNC`, shared XDP/TC policy, live packet effects, and collision-safe cleanup pass | [Sentinel qualification run](benchmarks/sentinel-2026-08-17.md), [kernel chaos qualification](benchmarks/sentinel-kernel-chaos-2026-08-24.md) |
+| Fresh Ubuntu VM | public installation, release provenance, offline execution, downstream adoption, cross-language behavior, failover, restore, and kernel fault controls pass together | [Ubuntu VM qualification](benchmarks/ubuntu-vm-qualification-2026-08-24.md) |
 | NVMe | 10,000 raw durable operations pass on the named NVMe device | [Sentinel qualification run](benchmarks/sentinel-2026-08-17.md) |
 | Formal model | bounded TLC exploration completes with no invariant violation | [Sentinel qualification run](benchmarks/sentinel-2026-08-17.md) |
 

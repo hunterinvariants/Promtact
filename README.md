@@ -328,6 +328,11 @@ measured XDP, TC, IPv4 partition, `netem` delay, `netem` loss, ownership
 collisions, and complete cleanup behavior. See
 [benchmarks/sentinel-kernel-chaos-2026-08-24.md](benchmarks/sentinel-kernel-chaos-2026-08-24.md).
 
+A separate fresh-VM qualification reproduced the public installation, release
+verification, deterministic and cross-language paths, five-node failover,
+backup and restore, and kernel fault controls on Ubuntu 24.04.4. See
+[benchmarks/ubuntu-vm-qualification-2026-08-24.md](benchmarks/ubuntu-vm-qualification-2026-08-24.md).
+
 Linux capability and integration gates:
 
 ```bash
